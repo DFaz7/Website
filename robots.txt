@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://www.dmftrading.co.uk/sitemap.xml

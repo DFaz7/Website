@@ -1,0 +1,62 @@
+:root {
+  color-scheme: dark;
+  --bg: #101d2d;
+  --text: #f5f7fa;
+  --muted: #acb9c9;
+  --accent: #d6ee8c;
+  --line: #344254;
+  font-family: Arial, Helvetica, sans-serif;
+  font-synthesis: none;
+  background: var(--bg);
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 7px; }
+::selection { color: var(--bg); background: var(--accent); }
+.page { max-width: 1600px; margin: 0 auto; padding: 0 clamp(24px, 5.5vw, 88px); }
+.skip-link { position: absolute; top: -100px; left: 24px; z-index: 2; padding: 16px; color: var(--bg); background: var(--accent); }
+.skip-link:focus { top: 12px; }
+.header { min-height: 112px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-size: 1.9rem; font-weight: 800; letter-spacing: -.07em; }
+.brand > span:first-child { max-width: 70px; font-size: .75rem; letter-spacing: .17em; font-weight: 600; }
+.brand-dot { align-self: flex-start; width: 7px; height: 7px; margin: 5px 0 0 1px; background: var(--accent); border-radius: 50%; }
+.header-contact { text-decoration: none; font-size: .9375rem; display: inline-flex; gap: 20px; align-items: center; padding: 12px 0; }
+.header-contact:hover { color: var(--accent); }
+.header-contact span { font-size: 1.4rem; }
+.contact { padding: clamp(64px, 8vw, 120px) 0 65px; }
+.eyebrow { margin: 0 0 32px; font-size: .875rem; letter-spacing: .15em; font-weight: 600; display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.eyebrow span { width: 23px; height: 2px; background: var(--accent); }
+h1 { margin: 0; font-size: clamp(2.7rem, 6.5vw, 6.3rem); font-weight: 500; line-height: 1.05; letter-spacing: -.065em; }
+h1 span { color: var(--accent); }
+.description { color: var(--muted); font-size: 1.0625rem; line-height: 1.7; margin: 28px 0 30px; }
+.email-button { display: inline-flex; gap: 68px; align-items: center; padding: 18px 24px; background: var(--accent); color: var(--bg); text-decoration: none; font-weight: 600; min-height: 56px; border-radius: 3px; transition: background .15s; }
+.email-button:hover { background: #e5f7b4; }
+.email-button span { font-size: 1.4rem; }
+.email-panel { margin-top: 70px; padding-top: 25px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 18px 30px; }
+.panel-label { font-size: .875rem; color: var(--muted); letter-spacing: .12em; align-self: center; }
+.email-address { display: inline-flex; align-items: center; gap: 30px; font-size: clamp(1.25rem, 2.6vw, 2rem); letter-spacing: -.035em; text-decoration: none; overflow-wrap: anywhere; }
+.email-address:hover { color: var(--accent); }
+.email-address span { color: var(--accent); }
+.email-panel p { grid-column: 2; margin: 0; color: var(--muted); font-size: .9375rem; }
+.wordmark { font-size: clamp(8rem, 30vw, 29rem); letter-spacing: -.085em; line-height: .79; font-weight: 800; color: #26364a; user-select: none; padding: 15px 0 0; position: relative; width: fit-content; }
+footer { position: relative; margin-top: 28px; min-height: 90px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: .875rem; }
+footer p { margin: 0; }
+@media (min-width: 1500px) { .contact { padding-top: 105px; } }
+@media (max-width: 600px) {
+  .header { min-height: 90px; gap: 12px; }
+  .brand { font-size: 1.65rem; gap: 7px; }
+  .brand > span:first-child { font-size: .6875rem; }
+  .header-contact { gap: 8px; font-size: .875rem; }
+  .contact { padding-top: 60px; padding-bottom: 55px; }
+  h1 { font-size: clamp(2.3rem, 8.6vw, 3.4rem); }
+  .description br { display: none; }
+  .description { max-width: 290px; }
+  .email-panel { margin-top: 60px; display: flex; flex-direction: column; align-items: flex-start; gap: 15px; }
+  .panel-label { align-self: flex-start; }
+  .email-address { gap: 12px; font-size: 1.25rem; max-width: 100%; }
+  .wordmark { font-size: 32vw; }
+  footer { min-height: 95px; flex-wrap: wrap; align-content: center; gap: 10px 24px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
