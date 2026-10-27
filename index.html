@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -54,14 +55,41 @@
     </div>
   </section>
 
+  <section class="section" id="about" aria-labelledby="about-heading">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">About us</p>
+        <h2 id="about-heading">Simple to check, simple to reach</h2>
+        <p>DMF Trading LTD is a UK company based in Manchester. Everything you need to know who we are is public and on this page.</p>
+      </div>
+      <div class="values">
+        <article class="card value reveal">
+          <span class="value-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.4 3.4 8.2 8 9 4.6-.8 8-4.6 8-9V6l-8-3Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span>
+          <h3>A registered UK company</h3>
+          <p>Registered at Companies House under number 17422616. Anyone can look up our public record.</p>
+        </article>
+        <article class="card value reveal">
+          <span class="value-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>
+          <h3>Based in Manchester</h3>
+          <p>Our registered office is at Wilson&#39;s Business Park, Manchester M40 8WN, United Kingdom.</p>
+        </article>
+        <article class="card value reveal">
+          <span class="value-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></span>
+          <h3>One inbox for everything</h3>
+          <p>Every enquiry goes to one place: <a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a>.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <section class="section" id="company" aria-labelledby="company-heading">
     <div class="wrap">
-      <div class="section-head">
+      <div class="section-head reveal">
         <p class="eyebrow">Company information</p>
         <h2 id="company-heading">Company details</h2>
         <p>The company name, address and contact details for DMF Trading LTD.</p>
       </div>
-      <dl class="card details">
+      <dl class="card details reveal">
         <div><dt>Legal company name</dt><dd>DMF Trading LTD</dd></div>
         <div><dt>Company number</dt><dd><a href="https://find-and-update.company-information.service.gov.uk/company/17422616">17422616</a> <a class="note" href="https://find-and-update.company-information.service.gov.uk/company/17422616">View on Companies House ↗</a></dd></div>
         <div><dt>Company address</dt><dd><address>Initial Business Centre, Unit 7<br>Wilson&#39;s Business Park<br>Manchester<br>M40 8WN<br>United Kingdom</address></dd></div>
@@ -71,9 +99,65 @@
     </div>
   </section>
 
+  <section class="section section-tight" id="software" aria-labelledby="software-heading">
+    <div class="wrap">
+      <div class="card software reveal">
+        <span class="software-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg></span>
+        <div class="software-text">
+          <p class="eyebrow">Software &amp; downloads</p>
+          <h2 id="software-heading">Downloads for customers</h2>
+          <p>Our software is available to customers from the downloads page. Downloads are password-protected. To get a password, email <a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a>.</p>
+        </div>
+        <a class="btn btn-primary" href="https://dmf-downloads.dmftrading.workers.dev/">Go to Downloads <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="steps" aria-labelledby="steps-heading">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">How to get in touch</p>
+        <h2 id="steps-heading">Three simple steps</h2>
+      </div>
+      <ol class="steps">
+        <li class="card reveal"><span class="step-no">1</span><h3>Email us</h3><p>Write to <a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a> from your usual email address.</p></li>
+        <li class="card reveal"><span class="step-no">2</span><h3>Tell us what you need</h3><p>Include your name, your company if you have one, and what your enquiry is about.</p></li>
+        <li class="card reveal"><span class="step-no">3</span><h3>Hear back by email</h3><p>We reply to the address you wrote from, so keep an eye on your inbox.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-heading">
+    <div class="wrap faq-wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2 id="faq-heading">Common questions</h2>
+        <p>Quick answers about DMF Trading LTD.</p>
+      </div>
+      <div class="faq card reveal">
+        <details>
+          <summary>How can I check DMF Trading LTD is a real company?</summary>
+          <p>Look us up on Companies House, the UK&#39;s official company register. Our company number is 17422616. <a href="https://find-and-update.company-information.service.gov.uk/company/17422616">Open our Companies House record ↗</a></p>
+        </details>
+        <details>
+          <summary>Where is your registered office?</summary>
+          <p>Initial Business Centre, Unit 7, Wilson&#39;s Business Park, Manchester, M40 8WN, United Kingdom.</p>
+        </details>
+        <details>
+          <summary>How do I get a downloads password?</summary>
+          <p>Email <a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a> and tell us which download you need. Downloads are for customers only.</p>
+        </details>
+        <details>
+          <summary>How do I make an enquiry?</summary>
+          <p>Email <a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a> with your name and what your enquiry is about.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
   <section class="section" id="contact" aria-labelledby="contact-heading">
     <div class="wrap">
-      <div class="contact">
+      <div class="contact reveal">
         <div class="contact-text">
           <p class="eyebrow">Get in touch</p>
           <h2 id="contact-heading">Contact DMF Trading</h2>
@@ -93,26 +177,82 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap footer-inner">
-    <p>© 2026 DMF Trading LTD</p>
-    <p>Company number 17422616</p>
-    <a href="https://www.dmftrading.co.uk/">www.dmftrading.co.uk</a>
+  <div class="wrap">
+    <div class="footer-cols">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="DMF Trading LTD home"><span class="brand-mark" aria-hidden="true">D</span><span class="brand-name">DMF Trading<small>LTD</small></span></a>
+        <p>Company information and enquiries.</p>
+      </div>
+      <div>
+        <h3>Company</h3>
+        <ul>
+          <li>DMF Trading LTD</li>
+          <li>Company number 17422616</li>
+          <li><a href="https://find-and-update.company-information.service.gov.uk/company/17422616">Companies House ↗</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Contact</h3>
+        <ul>
+          <li><a href="mailto:info@dmftrading.co.uk">info@dmftrading.co.uk</a></li>
+          <li><address>Initial Business Centre, Unit 7<br>Wilson&#39;s Business Park<br>Manchester M40 8WN</address></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Links</h3>
+        <ul>
+          <li><a href="#company">Company details</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#contact">Contact us</a></li>
+          <li><a href="https://dmf-downloads.dmftrading.workers.dev/">Downloads ↗</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 DMF Trading LTD</p>
+      <a href="https://www.dmftrading.co.uk/">www.dmftrading.co.uk</a>
+    </div>
   </div>
 </footer>
 
 <script>
-// Highlight the nav link of the section in view.
 (() => {
+  if (!("IntersectionObserver" in window)) {
+    document.documentElement.classList.remove("js");
+    return;
+  }
+  // Highlight the nav link of the section in view.
   const links = [...document.querySelectorAll(".nav-link")];
-  if (!("IntersectionObserver" in window) || !links.length) return;
   const byId = new Map(links.map((a) => [a.hash.slice(1), a]));
-  const io = new IntersectionObserver((entries) => {
+  const nav = new IntersectionObserver((entries) => {
     for (const e of entries) {
       const a = byId.get(e.target.id);
       if (a) a.classList.toggle("is-active", e.isIntersecting);
     }
   }, { rootMargin: "-45% 0px -45% 0px" });
-  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+  byId.forEach((_, id) => { const el = document.getElementById(id); if (el) nav.observe(el); });
+
+  // Fade sections in as they scroll into view.
+  const reveal = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      e.target.classList.add("in");
+      reveal.unobserve(e.target);
+    }
+  }, { rootMargin: "0px 0px -8% 0px" });
+  document.querySelectorAll(".reveal").forEach((el) => reveal.observe(el));
+  // Safety net for browsers that delay observer callbacks: show anything already scrolled past.
+  let queued = false;
+  addEventListener("scroll", () => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => {
+      queued = false;
+      document.querySelectorAll(".reveal:not(.in)").forEach((el) => {
+        if (el.getBoundingClientRect().top < innerHeight) { el.classList.add("in"); reveal.unobserve(el); }
+      });
+    }, 150);
+  }, { passive: true });
 })();
 </script>
 </body>
