@@ -12,6 +12,7 @@ const SHELL = [
   "lib/scan.mjs",
   "lib/status.mjs",
   "lib/store.mjs",
+  "vendor/jsqr.js",
   "manifest.webmanifest",
   "icons/icon.svg",
   "icons/icon-192.png",
