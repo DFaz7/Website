@@ -4,12 +4,19 @@
 // Also checks the service worker installs and caches the app shell. The Edge profile is a temp folder, removed after.
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, setPriority, tmpdir } from "node:os";
 import { join } from "node:path";
+
+// Below normal priority, and Edge started from here inherits it: screenshots never slow real work down.
+try {
+  setPriority(constants.priority.PRIORITY_BELOW_NORMAL);
+} catch {
+  // not allowed here: run at normal priority
+}
 
 const EDGE = process.env.EDGE || "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
 const SITE = "http://localhost:8765/letmeknow/";
-const PCS = [8791, 8792, 8793];
+const PCS = [8791, 8792, 8793, 8794, 8795, 8796, 8797, 8798];
 const PORT = 9333;
 const out = process.argv[2] || "lmk_shots";
 mkdirSync(out, { recursive: true });
@@ -52,7 +59,8 @@ async function connect() {
   throw new Error("Edge did not start");
 }
 
-async function view(name, w, h, ua, scheme, script = "") {
+// full: the whole page, not just what fits on the screen.
+async function view(name, w, h, ua, scheme, script = "", full = false) {
   await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: true });
   await send("Emulation.setUserAgentOverride", { userAgent: ua });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
@@ -61,7 +69,12 @@ async function view(name, w, h, ua, scheme, script = "") {
     await evaluate(script);
     await sleep(800);
   }
-  const shot = await send("Page.captureScreenshot", { format: "png" });
+  let opts = { format: "png" };
+  if (full) {
+    const height = await evaluate("Math.max(document.documentElement.scrollHeight, innerHeight)");
+    opts = { ...opts, captureBeyondViewport: true, clip: { x: 0, y: 0, width: w, height, scale: 1 } };
+  }
+  const shot = await send("Page.captureScreenshot", opts);
   writeFileSync(join(out, `${name}.png`), Buffer.from(shot.data, "base64"));
   console.log("saved", name);
 }
@@ -105,18 +118,22 @@ try {
   })()`);
   console.log("service worker:", JSON.stringify(sw));
 
-  const smu = `document.getElementById("tab-smu").click()`;
-  const tg = `document.getElementById("tab-tabgod").click()`;
+  const order = await evaluate(`[...document.querySelectorAll("#list [data-row]")].map((r) =>
+    r.querySelector(".app-badge").textContent + " " + r.querySelector(".item-device").textContent + " | " +
+    r.querySelector(".item-task").textContent + " | " + r.querySelector("[data-left]").textContent)`);
+  console.log("active:\n  " + order.join("\n  "));
+  const quiet = await evaluate(`[...document.querySelectorAll(".quiet-row")].map((r) => r.textContent)`);
+  console.log("not running:\n  " + quiet.join("\n  "));
+
+  const open = `document.querySelector(".quiet").open = true; document.querySelector(".quiet").dispatchEvent(new Event("toggle"))`;
   const settings = `document.getElementById("open-settings").click()`;
-  const add = `document.querySelector(".add-more").click()`;
   for (const scheme of ["light", "dark"]) {
-    await view(`iphone-smu-${scheme}`, 390, 844, IPHONE_UA, scheme, smu);
-    await view(`ipad-smu-${scheme}`, 820, 1180, IPAD_UA, scheme, smu);
+    await view(`iphone-active-${scheme}`, 390, 844, IPHONE_UA, scheme);
+    await view(`iphone-full-${scheme}`, 390, 844, IPHONE_UA, scheme, open, true);
+    await view(`ipad-active-${scheme}`, 820, 1180, IPAD_UA, scheme);
+    await view(`ipad-full-${scheme}`, 820, 1180, IPAD_UA, scheme, open, true);
   }
-  await view("iphone-tabgod-light", 390, 844, IPHONE_UA, "light", tg);
-  await view("iphone-settings-light", 390, 844, IPHONE_UA, "light", settings);
-  await view("iphone-settings-dark", 390, 844, IPHONE_UA, "dark", settings);
-  await view("iphone-add-dark", 390, 844, IPHONE_UA, "dark", add);
+  await view("iphone-settings-light", 390, 844, IPHONE_UA, "light", settings, true);
 } finally {
   try {
     ws?.close();

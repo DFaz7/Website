@@ -1,10 +1,10 @@
 """Test PCs for Let Me Know: PROTOCOL.md with fake data, plus the site itself, so the app can be clicked through.
 
-    python letmeknow/dev/mock_pc.py            # site on http://localhost:8765/letmeknow/, PCs on 8791-8793
+    python letmeknow/dev/mock_pc.py            # site on http://localhost:8765/letmeknow/, PCs on 8791-8798
     python letmeknow/dev/mock_pc.py --port 8765 --quiet
 
 Each fake PC prints its pairing code. In the app: Add a PC, Type code instead, address http://localhost:8791 (or
-8792, 8793) and the code. GET /dev/code on a PC (no Origin header) answers its current code and QR text.
+8792 to 8798) and the code. GET /dev/code on a PC (no Origin header) answers its current code and QR text.
 Nothing is written to disk; pushes are printed, not sent (the alert key is a throwaway made at start).
 """
 from __future__ import annotations
@@ -65,8 +65,11 @@ def norm_code(text: str) -> str:
 
 
 class FakePC:
-    def __init__(self, name: str, app: str, port: int, tasks: list[dict], busy: bool):
+    def __init__(self, name: str, app: str, port: int, tasks: list[dict], busy: bool, down: bool = False,
+                 revoked: bool = False):
         self.name, self.app, self.port, self.busy = name, app, port, busy
+        self.down = down  # pairs, then never answers /v1/status: the phone shows "Can't reach"
+        self.revoked = revoked  # pairs, then refuses the token: the phone shows "Not paired"
         self.id = hashlib.sha256(f"{name} {app}".encode()).hexdigest()[:16]
         self.tasks = tasks
         self.start = time.time()
@@ -88,22 +91,22 @@ class FakePC:
         log(f"[{self.name} {self.app} :{self.port}] pairing code {self.code}")
 
     def status(self) -> dict:
-        """Fake progress: the running task gains a person every 20 s; ZBook's SMU asks a question for 40 s of
-        every 2 min."""
+        """Fake progress: a running task gains a person every minute; a task with "asks" needs the owner while it
+        runs."""
         el = time.time() - self.start
         out = []
         for t in self.tasks:
             done, left = t["done"], t["left"]
             running = self.busy and t.get("run", False)
             if running:
-                step = min(left, int(el // 20))
+                step = min(left, int(el // 60))
                 done, left = done + step, left - step
                 running = left > 0
             why = ""
-            if t.get("asks") and running and (el % 120) < 40:
+            if t.get("asks") and running:
                 why = t["asks"]
             per = t.get("per")
-            eta = None if per is None or not left else int(per * left - (el % 20 if running else 0))
+            eta = None if per is None or not left else int(per * left - (el % 60 if running else 0))
             out.append({"id": t["id"], "name": t["name"], "done": done, "failed": t["failed"], "left": left,
                         "running": running, "needs_you": bool(why), "needs_you_reason": why or None,
                         "learned": per is not None, "per_person_seconds": per, "gap_seconds": t.get("gap"),
@@ -169,7 +172,7 @@ def make_handler(pc: FakePC, origins: set[str]):
 
         def me(self) -> str | None:
             auth = self.headers.get("Authorization") or ""
-            if not auth.startswith("Bearer "):
+            if not auth.startswith("Bearer ") or pc.revoked:
                 return None
             h = hashlib.sha256(auth[7:].encode()).hexdigest()
             for did, d in pc.devices.items():
@@ -213,6 +216,9 @@ def make_handler(pc: FakePC, origins: set[str]):
                 if not did:
                     return self.send(401, {"error": "token"})
                 if method == "GET" and path == "/v1/status":
+                    if pc.down:  # no answer at all, like a PC that's off the tailnet
+                        self.close_connection = True
+                        return None
                     return self.send(200, pc.status())
                 if method == "GET" and path == "/v1/devices":
                     return self.send(200, {"devices": [
@@ -289,6 +295,8 @@ def site_handler(root: str):
 
 
 def fake_pcs() -> list[FakePC]:
+    """Several PCs with both apps, in every state the phone shows: needs you, short and long runs, learning the form,
+    idle, can't reach and not paired."""
     return [
         FakePC("ZBook", "smu", 8791, [
             {"id": "t1", "name": "Gym list", "done": 12, "failed": 1, "left": 30, "run": True, "per": 95, "gap": 20,
@@ -297,13 +305,38 @@ def fake_pcs() -> list[FakePC]:
             {"id": "t3", "name": "Spring offers", "done": 40, "failed": 2, "left": 0, "per": 80, "gap": 15},
         ], busy=True),
         FakePC("ZBook", "tabgod", 8792, [
-            {"id": "g1", "name": "Profiles batch A", "done": 7, "failed": 0, "left": 5, "per": 240, "gap": 30},
-        ], busy=False),
+            {"id": "g1", "name": "Profiles batch A", "done": 7, "failed": 0, "left": 6, "run": True, "per": 45,
+             "gap": 10},
+        ], busy=True),
         FakePC("Mini 1", "smu", 8793, [
-            {"id": "m1", "name": "Club members", "done": 3, "failed": 0, "left": 9, "run": True, "per": 120,
+            {"id": "m1", "name": "Club members", "done": 3, "failed": 0, "left": 70, "run": True, "per": 120,
              "gap": 25},
         ], busy=True),
+        FakePC("Mini 1", "tabgod", 8794, [
+            {"id": "g2", "name": "Profiles batch B", "done": 20, "failed": 1, "left": 12, "per": 240, "gap": 30},
+        ], busy=False),
+        FakePC("Mini 2", "smu", 8795, [
+            {"id": "n1", "name": "Book club", "done": 0, "failed": 0, "left": 25, "run": True, "per": None},
+        ], busy=True),
+        FakePC("Mini 2", "tabgod", 8796, [
+            {"id": "g3", "name": "Profiles batch C", "done": 4, "failed": 2, "left": 9, "run": True, "per": 200,
+             "gap": 30, "asks": "Both AIs couldn't do a step"},
+        ], busy=True),
+        FakePC("Desktop", "smu", 8797, [
+            {"id": "d1", "name": "Winter offers", "done": 1, "failed": 0, "left": 50, "run": True, "per": 90},
+        ], busy=True, down=True),
+        FakePC("Laptop 2", "tabgod", 8798, [], busy=False, revoked=True),
     ]
+
+
+def below_normal_priority() -> None:
+    """A test tool stays out of the way of real work on this PC."""
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        k.SetPriorityClass(k.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL_PRIORITY_CLASS
+    else:
+        os.nice(5)
 
 
 def main() -> None:
@@ -313,6 +346,7 @@ def main() -> None:
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
     QUIET = a.quiet
+    below_normal_priority()
     origins = {f"http://localhost:{a.port}", f"http://127.0.0.1:{a.port}"}
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     servers = []

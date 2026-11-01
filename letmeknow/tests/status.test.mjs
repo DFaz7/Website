@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as store from "../lib/store.mjs";
 import {
-  agoText, b64urlToBytes, clockText, guessDeviceName, leftText, needsYouCount, normalizeAddress, normalizeCode,
-  normalizeStatus, parsePairing, secondsLeft, sortTasks, tailnetSuffix, timeLine,
+  STATE_LABELS, agoText, b64urlToBytes, buildBoard, clockText, guessDeviceName, leftText, needsYouCount,
+  normalizeAddress, normalizeCode, normalizeStatus, notRunningTitle, parsePairing, rowTime, secondsLeft, sortTasks,
+  stateNote, tailnetSuffix, timeLine,
 } from "../lib/status.mjs";
 
 const SMU = {
@@ -178,4 +179,117 @@ test("app and service worker carry the same version, and the worker caches every
   for (const f of ["lib/api.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs", "app.js", "app.css", "index.html"]) {
     assert.ok(sw.includes(`"${f}"`), `${f} in the shell list`);
   }
+});
+
+// ---------- The one Active list ----------
+
+const NOW = Date.parse("2026-11-01T03:00:00Z");
+const task = (id, name, extra = {}) => ({ id, name, done: 1, failed: 0, left: 5, running: false, needs_you: false,
+  needs_you_reason: null, learned: true, eta_seconds: null, eta_at: null, ...extra });
+const running = (id, name, mins, extra = {}) => task(id, name, { running: true, eta_seconds: mins * 60,
+  eta_at: new Date(NOW + mins * 60_000).toISOString(), ...extra });
+const entry = (key, app, device, tasks, extra = {}) => ({ key, app, device, fetchedAt: NOW, error: "",
+  status: normalizeStatus({ app, device: { name: device, active: tasks.some((t) => t.running) }, tasks }), ...extra });
+
+function board() {
+  return buildBoard([
+    entry("smu:zb", "smu", "ZBook", [running("t1", "Gym list", 55, { needs_you: true, needs_you_reason: "A question" }),
+      task("t3", "Spring offers", { left: 0 })]),
+    entry("tabgod:zb", "tabgod", "ZBook", [running("g1", "Profiles A", 4)]),
+    entry("smu:m1", "smu", "Mini 1", [running("m1", "Club members", 140)]),
+    entry("tabgod:m1", "tabgod", "Mini 1", [task("g2", "Profiles B", { left: 12 })]),
+    entry("smu:m2", "smu", "Mini 2", [running("n1", "Book club", 0, { learned: false, eta_seconds: null, eta_at: null })]),
+    entry("tabgod:m2", "tabgod", "Mini 2", [running("g3", "Profiles C", 30, { needs_you: true, needs_you_reason: "Both AIs couldn't do a step" })]),
+    entry("smu:m10", "smu", "Mini 10", [running("x1", "Address book", 0, { learned: false, eta_seconds: null, eta_at: null })]),
+    entry("smu:a2", "smu", "Alpha", [running("a1", "Club members", 140)]),
+    entry("smu:dt", "smu", "Desktop", [], { status: null, error: "offline" }),
+    entry("tabgod:l2", "tabgod", "Laptop 2", [], { status: null, error: "token" }),
+    entry("smu:new", "smu", "Mini 3", [], { status: null }),
+    entry("smu:stale", "smu", "Old PC", [running("s1", "Stale run", 5)], { error: "offline" }),
+  ], NOW);
+}
+
+test("active order: needs you, then least time left, then learning by task name; ties by device", () => {
+  const rows = board().active.map((r) => `${r.app} ${r.device} ${r.task.name}`);
+  assert.deepEqual(rows, [
+    "tabgod Mini 2 Profiles C", // needs you, by device name ("Mini 2" before "ZBook")
+    "smu ZBook Gym list",
+    "tabgod ZBook Profiles A", // 4 min
+    "smu Alpha Club members", // 140 min, tie: by device name
+    "smu Mini 1 Club members",
+    "smu Mini 10 Address book", // learning the form: by task name ("Address book" before "Book club")
+    "smu Mini 2 Book club",
+  ]);
+});
+
+test("each active row carries its app, device and task, and a needs-you row keeps its reason", () => {
+  const r = board().active[0];
+  assert.equal(r.app, "tabgod");
+  assert.equal(r.device, "Mini 2");
+  assert.equal(r.task.name, "Profiles C");
+  assert.equal(r.task.reason, "Both AIs couldn't do a step");
+  assert.equal(r.group, 0);
+});
+
+test("a needs-you task that isn't running is still in the list", () => {
+  const b = buildBoard([entry("smu:a", "smu", "ZBook", [task("t", "Gym", { needs_you: true, needs_you_reason: "IWM needs you" })])], NOW);
+  assert.equal(b.active.length, 1);
+  assert.equal(b.notRunning.length, 0);
+});
+
+test("not running: problems first, then connecting, then idle; nothing silently disappears", () => {
+  const b = board();
+  assert.deepEqual(b.notRunning.map((r) => `${r.state} ${r.app} ${r.device}`), [
+    "token tabgod Laptop 2",
+    "offline smu Desktop",
+    "offline smu Old PC", // its last known run is not shown as running: the PC can't be reached
+    "connecting smu Mini 3",
+    "idle tabgod Mini 1",
+  ]);
+  const all = new Set([...b.active.map((r) => r.pcKey), ...b.notRunning.map((r) => r.key)]);
+  assert.equal(all.size, 12);
+});
+
+test("a PC/app with only finished tasks is idle, with the people left counted", () => {
+  const b = buildBoard([entry("x", "smu", "ZBook", [task("a", "A", { left: 0 }), task("b", "B", { left: 7 })])], NOW);
+  assert.deepEqual(b.notRunning, [{ key: "x", app: "smu", device: "ZBook", state: "idle", left: 7 }]);
+  assert.equal(stateNote(b.notRunning[0]), "Nothing running · 7 left");
+  assert.equal(stateNote({ state: "idle", left: 0 }), "Nothing running");
+});
+
+test("labels and notes for every state", () => {
+  assert.deepEqual(STATE_LABELS, { idle: "Idle", offline: "Can't reach", token: "Not paired", error: "Error", connecting: "Connecting" });
+  for (const s of Object.keys(STATE_LABELS)) assert.ok(stateNote({ state: s, left: 0 }).length > 5, s);
+  assert.match(stateNote({ state: "offline" }), /Tailscale/);
+  assert.match(stateNote({ state: "token" }), /Pair it again/);
+});
+
+test("the collapsed section's title counts pairs and flags the ones to look at", () => {
+  assert.deepEqual(notRunningTitle(board().notRunning), { title: "Not running · 5", note: "3 need a look" });
+  assert.deepEqual(notRunningTitle([{ state: "offline" }]), { title: "Not running · 1", note: "1 needs a look" });
+  assert.deepEqual(notRunningTitle([{ state: "idle" }, { state: "connecting" }]), { title: "Not running · 2", note: "" });
+});
+
+test("row time: short time left and finish, learning, nothing", () => {
+  const t = normalizeStatus({ tasks: [running("a", "A", 43)] }).tasks[0];
+  assert.deepEqual(rowTime(t, NOW, NOW, "UTC"), { left: "43 min", by: "done by 03:43" });
+  assert.deepEqual(rowTime(t, NOW + 60_000, NOW, "UTC"), { left: "42 min", by: "done by 03:43" });
+  const l = normalizeStatus({ tasks: [{ running: true, learned: false, left: 5 }] }).tasks[0];
+  assert.deepEqual(rowTime(l, NOW, NOW), { left: "learning the form", by: "" });
+  const n = normalizeStatus({ tasks: [{ running: true, left: 5 }] }).tasks[0];
+  assert.deepEqual(rowTime(n, NOW, NOW), { left: "", by: "" });
+});
+
+test("ordering by time left follows the countdown, not the PC's old figure", () => {
+  const b = buildBoard([
+    entry("a", "smu", "A", [running("1", "One", 10)]),
+    entry("b", "smu", "B", [running("2", "Two", 9, { eta_at: new Date(NOW + 20 * 60_000).toISOString() })]),
+  ], NOW);
+  assert.deepEqual(b.active.map((r) => r.device), ["A", "B"]);
+});
+
+test("the main screen has no app tabs any more", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.ok(!html.includes('role="tablist"'));
+  assert.ok(html.includes('id="list"'));
 });

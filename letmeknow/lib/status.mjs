@@ -99,6 +99,75 @@ export function timeLine(task, now, fetchedAt, timeZone) {
   return s;
 }
 
+// The time part of an Active row: { left: "43 min" | "learning the form" | "", by: "done by 01:08" | "" }.
+export function rowTime(task, now, fetchedAt, timeZone) {
+  if (task.learned === false) return { left: "learning the form", by: "" };
+  const secs = task.left === 0 ? null : secondsLeft(task, now, fetchedAt);
+  if (secs == null) return { left: "", by: "" };
+  return { left: leftText(secs), by: task.running ? `done by ${clockText(now + secs * 1000, timeZone)}` : "" };
+}
+
+const byName = (a, b) => a.localeCompare(b, "en", { sensitivity: "base", numeric: true });
+
+// One list for every paired PC and app.
+// entries: [{ key, app, device, status (normalizeStatus) | null, error: "" | "offline" | "token" | ..., fetchedAt }]
+// active: every task that needs the owner or is running, on a PC that answered just now:
+//   1. needs you (by device, then task name);
+//   2. running with an estimate, least time left first;
+//   3. running without one yet ("learning the form"), by task name;
+//   ties by device name, then app.
+// notRunning: every PC/app pair with nothing in `active`: not paired, can't reach, error, connecting, then idle.
+export function buildBoard(entries, now) {
+  const active = [];
+  const notRunning = [];
+  for (const e of entries) {
+    const rows = [];
+    if (e.status && !e.error) {
+      for (const t of e.status.tasks) {
+        if (!t.needsYou && !t.running) continue;
+        const secs = t.learned === false ? null : secondsLeft(t, now, e.fetchedAt);
+        rows.push({ id: `${e.key}/${t.id}`, pcKey: e.key, app: e.app, device: e.device, task: t, secs: t.running ? secs : null,
+          group: t.needsYou ? 0 : t.running && secs != null ? 1 : 2, fetchedAt: e.fetchedAt });
+      }
+    }
+    if (rows.length) active.push(...rows);
+    else {
+      const state = e.error === "token" ? "token" : e.error === "offline" ? "offline" : e.error ? "error"
+        : e.status ? "idle" : "connecting";
+      const left = e.status ? e.status.tasks.reduce((n, t) => n + (t.left || 0), 0) : null;
+      notRunning.push({ key: e.key, app: e.app, device: e.device, state, left });
+    }
+  }
+  active.sort((a, b) =>
+    a.group - b.group
+    || (a.group === 0 ? byName(a.device, b.device) || byName(a.task.name, b.task.name) : 0)
+    || (a.group === 1 ? a.secs - b.secs : 0)
+    || (a.group === 2 ? byName(a.task.name, b.task.name) : 0)
+    || byName(a.device, b.device)
+    || byName(a.app || "", b.app || "")
+    || byName(a.task.name, b.task.name));
+  const rank = { token: 0, offline: 1, error: 2, connecting: 3, idle: 4 };
+  notRunning.sort((a, b) => rank[a.state] - rank[b.state] || byName(a.device, b.device) || byName(a.app || "", b.app || ""));
+  return { active, notRunning };
+}
+
+export const STATE_LABELS = { idle: "Idle", offline: "Can't reach", token: "Not paired", error: "Error", connecting: "Connecting" };
+
+// The quiet line under a Not running pair.
+export function stateNote(row) {
+  if (row.state === "idle") return row.left ? `Nothing running · ${row.left} left` : "Nothing running";
+  if (row.state === "offline") return "Check that Tailscale is on, here and on the PC";
+  if (row.state === "token") return "Pair it again from the app's Settings on the PC";
+  if (row.state === "error") return "It answered with an error. Trying again";
+  return "Waiting for the first answer";
+}
+
+// The collapsed section's title: "Not running · 4", plus how many need a look ("2 need a look").
+export function notRunningTitle(rows) {
+  const bad = rows.filter((r) => r.state === "offline" || r.state === "token" || r.state === "error").length;
+  return { title: `Not running · ${rows.length}`, note: bad ? `${bad} ${bad === 1 ? "needs" : "need"} a look` : "" };
+}
+
 // "just now", "12 s ago", "3 min ago", "2 h ago".
 export function agoText(ms) {
   const s = Math.max(0, Math.round(ms / 1000));

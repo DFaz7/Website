@@ -1,6 +1,6 @@
 // Let Me Know service worker: the app shell offline, updates, and alerts.
 // VERSION must match app.js; a change here is what makes phones pick up a new version.
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CACHE = `lmk-${VERSION}`;
 const LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 const SHELL = [
@@ -97,8 +97,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const app = event.notification.data && event.notification.data.app;
-  const target = new URL(app ? `./?tab=${app}` : "./", self.location).href;
+  const target = new URL("./", self.location).href;
   event.waitUntil(
     (async () => {
       const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

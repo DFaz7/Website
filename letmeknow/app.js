@@ -3,11 +3,11 @@ import * as api from "./lib/api.mjs";
 import * as store from "./lib/store.mjs";
 import { startScan } from "./lib/scan.mjs";
 import {
-  APP_NAMES, agoText, b64urlToBytes, guessDeviceName, needsYouCount, normalizeAddress, normalizeCode,
-  normalizeStatus, parsePairing, sortTasks, tailnetSuffix, timeLine,
+  APP_NAMES, STATE_LABELS, agoText, b64urlToBytes, buildBoard, guessDeviceName, needsYouCount, normalizeAddress,
+  normalizeCode, normalizeStatus, notRunningTitle, parsePairing, rowTime, stateNote, tailnetSuffix,
 } from "./lib/status.mjs";
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 const POLL_MS = 10_000;
 const ROTATE_MS = 30 * 24 * 3600 * 1000;
 
@@ -15,20 +15,13 @@ const $ = (id) => document.getElementById(id);
 let state = store.load();
 if (!state.deviceName) state.deviceName = guessDeviceName(navigator.userAgent, navigator.maxTouchPoints || 0);
 const live = new Map(); // pc key -> { status, fetchedAt, okAt, error }
-let tab = new URLSearchParams(location.search).get("tab") || readTab();
-if (!APP_NAMES[tab]) tab = "smu";
 let pollTimer = 0;
 let scanner = null;
 let swReg = null;
 let updating = false;
-
-function readTab() {
-  try {
-    return localStorage.getItem("lmk.tab") || "smu";
-  } catch {
-    return "smu";
-  }
-}
+let lastRefresh = 0; // when every PC was last asked
+let quietOpen = false; // the Not running section, opened by the user
+let rowsById = new Map(); // Active row id -> row, for the countdowns between refreshes
 
 function persist() {
   store.save(state);
@@ -56,13 +49,69 @@ function pcName(pc) {
 
 // ---------- Home ----------
 
-function renderTabs() {
-  for (const b of document.querySelectorAll(".tabs button")) {
-    const app = b.dataset.app;
-    b.setAttribute("aria-selected", String(app === tab));
-    const n = needsYouCount(state.pcs.filter((p) => p.app === app).map((p) => live.get(p.key)?.status));
-    b.querySelector(".dot").hidden = n === 0;
+const GLYPH = {
+  smu: ["M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z", "M14.5 6.5l3 3"],
+  tabgod: ["M3 9.5A2.5 2.5 0 0 1 5.5 7h13A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z",
+    "M3 12h18M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"],
+};
+
+// The app's badge: its own colour and glyph, so SMU and TabGod rows tell apart at a glance.
+function appBadge(app) {
+  const b = el("span", `app-badge app-${APP_NAMES[app] ? app : "other"}`);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of GLYPH[app] || []) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d);
+    svg.append(p);
   }
+  b.append(svg, el("span", null, APP_NAMES[app] || "App"));
+  return b;
+}
+
+function entries() {
+  return state.pcs.map((pc) => {
+    const l = live.get(pc.key) || {};
+    return { key: pc.key, app: pc.app, device: pcName(pc), status: l.status || null, error: l.error || "", fetchedAt: l.fetchedAt || 0 };
+  });
+}
+
+function activeRow(r) {
+  const t = r.task;
+  const card = el("article", t.needsYou ? "card item needs-row" : "card item");
+  card.dataset.row = r.id;
+  const top = el("div", "item-top");
+  const time = el("span", "item-left");
+  time.dataset.left = "1";
+  top.append(appBadge(r.app), el("span", "item-device", r.device), time);
+  const mid = el("div", "item-mid");
+  const by = el("span", "item-by");
+  by.dataset.by = "1";
+  mid.append(el("span", "item-task", t.name), by);
+  card.append(top, mid);
+  if (t.needsYou) card.append(el("div", "needs", `Needs you: ${t.reason || "open the app on the PC"}`));
+  const nums = el("div", "item-nums");
+  for (const [v, label, bad] of [[t.done, "done"], [t.failed, "failed", true], [t.left, "left"]]) {
+    const s = el("span", bad && v ? "bad" : null);
+    s.append(el("b", null, v == null ? "–" : String(v)), document.createTextNode(` ${label}`));
+    nums.append(s);
+  }
+  card.append(nums);
+  return card;
+}
+
+function quietRow(r) {
+  const row = el("div", "quiet-row");
+  const txt = el("div", "quiet-text");
+  const line = el("div", "quiet-line");
+  line.append(appBadge(r.app), el("span", "item-device", r.device));
+  txt.append(line, el("span", "sub", stateNote(r)));
+  const right = el("div", "quiet-right");
+  right.append(el("span", r.state === "idle" || r.state === "connecting" ? "pill" : "pill warn", STATE_LABELS[r.state]));
+  if (r.state === "token") right.append(button("Pair again", "btn small ghost", openAdd));
+  row.append(txt, right);
+  return row;
 }
 
 function emptyState(title, text) {
@@ -73,112 +122,72 @@ function emptyState(title, text) {
   return node;
 }
 
-function taskNode(t, fetchedAt) {
-  const finished = t.left === 0 && !t.running && !t.needsYou;
-  const n = el("div", finished ? "task finished" : "task");
-  const head = el("div", "task-head");
-  head.append(el("span", "task-name", t.name));
-  if (t.needsYou) head.append(el("span", "chip red", "Needs you"));
-  else if (t.running) head.append(el("span", "chip", "Running now"));
-  else if (finished) head.append(el("span", "done-line", `${t.done ?? 0} done${t.failed ? `, ${t.failed} failed` : ""}`));
-  n.append(head);
-  const nums = el("div", "nums");
-  for (const [label, v, bad] of [["Done", t.done], ["Failed", t.failed, true], ["Left", t.left]]) {
-    const box = el("div", bad && v ? "num bad" : "num");
-    box.append(el("b", null, v == null ? "–" : String(v)), el("span", null, label));
-    nums.append(box);
-  }
-  n.append(nums);
-  const eta = el("p", "eta", timeLine(t, Date.now(), fetchedAt));
-  eta.dataset.task = t.id;
-  n.append(eta);
-  return n;
-}
-
-function pcCard(pc) {
-  const l = live.get(pc.key) || {};
-  const s = l.status;
-  const card = el("article", "card pc");
-  card.dataset.key = pc.key;
-  const head = el("div", "pc-head");
-  head.append(el("h2", "pc-name", pcName(pc)));
-  let pill;
-  if (l.error === "offline") pill = el("span", "pill warn", "Can't reach");
-  else if (l.error === "token") pill = el("span", "pill warn", "Not paired");
-  else if (s && s.device.active) pill = el("span", "pill on", "Active now");
-  else if (s) pill = el("span", "pill", "Idle");
-  else pill = el("span", "pill", "Loading");
-  head.append(pill);
-  card.append(head);
-  const sub = el("p", "pc-sub", "");
-  sub.dataset.ago = "1";
-  card.append(sub);
-
-  if (l.error === "token") {
-    const w = el("div", "warnbox", `This device is no longer paired with ${pcName(pc)}.`);
-    w.append(el("br"), button("Pair again", "btn small ghost", openAdd));
-    card.append(w);
-    return card;
-  }
-  if (l.error === "offline") {
-    card.append(el("div", "warnbox", `Can't reach ${pcName(pc)}. Check that Tailscale is on, here and on the PC.`));
-    if (s) card.classList.add("stale");
-  } else if (l.error) {
-    card.append(el("div", "warnbox", `${pcName(pc)} answered with an error. Trying again.`));
-    if (s) card.classList.add("stale");
-  }
-  if (!s) return card;
-
-  for (const t of s.tasks.filter((x) => x.needsYou)) {
-    const b = el("div", "needs");
-    const txt = el("div", null, `Needs you: ${t.reason || "open the app on the PC"}`);
-    txt.append(el("small", null, t.name));
-    b.append(txt);
-    card.append(b);
-  }
-  if (!s.tasks.length) card.append(el("p", "eta", "No tasks on this PC."));
-  for (const t of sortTasks(s.tasks)) card.append(taskNode(t, l.fetchedAt));
-  return card;
-}
-
 function renderList() {
   const list = $("list");
   list.replaceChildren();
-  const pcs = state.pcs.filter((p) => p.app === tab);
+  rowsById = new Map();
   if (!state.pcs.length) {
     list.append(emptyState("No PCs yet", "Pair Let Me Know with SMU or TabGod on your PC to see its status here."));
-  } else if (!pcs.length) {
-    list.append(emptyState(`No PCs with ${APP_NAMES[tab]} yet`, `On the PC, open ${APP_NAMES[tab]}'s Settings and choose Pair a phone.`));
-  } else {
-    const order = (p) => {
-      const s = live.get(p.key)?.status;
-      return s ? (needsYouCount([s]) ? 0 : s.device.active ? 1 : 2) : 3;
-    };
-    for (const pc of [...pcs].sort((a, b) => order(a) - order(b))) list.append(pcCard(pc));
-    const more = button("Add a PC", "btn ghost wide add-more", openAdd);
-    list.append(more);
+    tick();
+    return;
   }
+  const { active, notRunning } = buildBoard(entries(), Date.now());
+  const head = el("div", "section-head");
+  const h = el("h2", null, "Active");
+  if (active.length) h.append(el("span", "count", String(active.length)));
+  const ago = el("span", "updated");
+  ago.dataset.ago = "1";
+  head.append(h, ago);
+  list.append(head);
+  if (active.length) {
+    for (const r of active) {
+      rowsById.set(r.id, r);
+      list.append(activeRow(r));
+    }
+  } else {
+    const waiting = notRunning.some((r) => r.state === "connecting");
+    const box = el("div", "card nothing");
+    box.append(el("b", null, waiting ? "Checking your PCs…" : "Nothing running"),
+      el("span", null, waiting ? "" : "When a PC starts a run or needs you, it shows here."));
+    list.append(box);
+  }
+  if (notRunning.length) {
+    const d = el("details", "quiet");
+    d.open = quietOpen;
+    d.addEventListener("toggle", () => {
+      quietOpen = d.open;
+    });
+    const sum = el("summary");
+    const t = notRunningTitle(notRunning);
+    sum.append(el("span", "quiet-title", t.title));
+    if (t.note) sum.append(el("span", "quiet-note", t.note));
+    const box = el("div", "card quiet-list");
+    for (const r of notRunning) box.append(quietRow(r));
+    d.append(sum, box);
+    list.append(d);
+  }
+  list.append(button("Add a PC", "btn ghost wide add-more", openAdd));
   tick();
 }
 
 function render() {
-  renderTabs();
   renderList();
   badge();
 }
 
-// Every second: the countdowns and "updated ... ago", without rebuilding the cards.
+// Every second: the countdowns and "updated ... ago", without rebuilding the rows.
 function tick() {
   const now = Date.now();
-  for (const card of document.querySelectorAll(".pc")) {
-    const l = live.get(card.dataset.key);
-    const sub = card.querySelector("[data-ago]");
-    if (sub) sub.textContent = l && l.okAt ? `Updated ${agoText(now - l.okAt)}` : l && l.error ? "Not updated yet" : "Connecting…";
-    if (!l || !l.status) continue;
-    for (const p of card.querySelectorAll(".eta[data-task]")) {
-      const t = l.status.tasks.find((x) => x.id === p.dataset.task);
-      if (t) p.textContent = timeLine(t, now, l.fetchedAt);
-    }
+  const ago = document.querySelector("#list [data-ago]");
+  if (ago) ago.textContent = lastRefresh ? `Updated ${agoText(now - lastRefresh)}` : "";
+  for (const card of document.querySelectorAll("#list [data-row]")) {
+    const r = rowsById.get(card.dataset.row);
+    if (!r) continue;
+    const t = rowTime(r.task, now, r.fetchedAt);
+    const left = card.querySelector("[data-left]");
+    left.textContent = t.left;
+    left.classList.toggle("learning", r.task.learned === false);
+    card.querySelector("[data-by]").textContent = t.by;
   }
 }
 
@@ -230,6 +239,7 @@ async function refresh() {
   if (!refreshing) {
     refreshing = Promise.all(state.pcs.map(fetchPc)).then(() => {
       refreshing = null;
+      lastRefresh = Date.now();
       render();
     });
   }
@@ -358,8 +368,6 @@ async function doPair(p) {
     };
     state = store.upsertPc(state, pc);
     persist();
-    tab = app;
-    saveTab();
     const name = pc.name || "the PC";
     let note = `Paired with ${name}.`;
     if (vapid && others.length && !others.includes(vapid)) {
@@ -642,24 +650,6 @@ async function setupWorker() {
   syncPush();
 }
 
-function saveTab() {
-  try {
-    localStorage.setItem("lmk.tab", tab);
-  } catch {
-    // remembered for this session only
-  }
-}
-
-function setupTabs() {
-  for (const b of document.querySelectorAll(".tabs button")) {
-    b.addEventListener("click", () => {
-      tab = b.dataset.app;
-      saveTab();
-      render();
-    });
-  }
-}
-
 function isIosSafariTab() {
   const ios = /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   return ios && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches;
@@ -667,7 +657,6 @@ function isIosSafariTab() {
 
 function init() {
   persist();
-  setupTabs();
   setupAdd();
   setupSettings();
   setupPull();
