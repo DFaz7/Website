@@ -31,3 +31,16 @@ Instructions checked against [GitHub's custom-domain guide](https://docs.github.
 Edit `index.html` to change the page text and `styles.css` to change its appearance. Commit your changes on GitHub to update the published site.
 
 Open `index.html` locally to preview. This package does not change your domain settings or publish anything automatically.
+
+## Let Me Know (`letmeknow/`)
+
+A phone and iPad web app that shows SMU and TabGod status on each paired PC and alerts when one needs you. It is
+published with the rest of the site at `/letmeknow/`. `letmeknow/DESIGN.md` explains how it works and
+`letmeknow/PROTOCOL.md` is what each PC must answer.
+
+- Tests: `node --test letmeknow/tests/status.test.mjs`
+- Try it locally: `python letmeknow/dev/mock_pc.py`, then open `http://localhost:8765/letmeknow/`, choose Add a PC,
+  Type code instead, and use an address and code the script prints.
+- Screenshots: with the script running, `node letmeknow/dev/screens.mjs <folder>` (headless Edge).
+- Releasing a change: raise `VERSION` in both `letmeknow/sw.js` and `letmeknow/app.js`, so installed copies offer
+  the update.
