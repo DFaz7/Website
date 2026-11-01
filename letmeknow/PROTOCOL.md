@@ -1,0 +1,150 @@
+# Let Me Know - PC protocol (version 1)
+
+What SMU and TabGod implement on each PC so the Let Me Know web app (`https://dmftrading.co.uk/letmeknow/`) can
+show their status and get alerts. `dev/mock_pc.py` implements all of it with fake data.
+
+## Listener and transport
+
+| App    | Local listener     | Reached by the phone as (via `tailscale serve`)  |
+| ------ | ------------------ | ------------------------------------------------ |
+| SMU    | `127.0.0.1:8791`   | `https://<machine>.<tailnet>.ts.net` (port 443)  |
+| TabGod | `127.0.0.1:8792`   | `https://<machine>.<tailnet>.ts.net:8443`        |
+
+- Plain HTTP on 127.0.0.1 only. `tailscale serve --bg --https=443 http://127.0.0.1:8791` (TabGod: `--https=8443`
+  and `8792`) gives it HTTPS inside the tailnet. Never Funnel. The app may run that command itself at start when
+  `tailscale` is on PATH and the serve config is missing; `tailscale serve status --json` shows what is set.
+- This is **not** SMU's IWM link (that one refuses any request with `Origin`/`Sec-Fetch-*` on purpose): a separate
+  listener, only the endpoints below, JSON in and out, bodies at most 16 KB, `Cache-Control: no-store` on every
+  answer.
+- The PC's base URL is `https://` + Tailscale's MagicDNS name for this machine (`tailscale status --json` ->
+  `Self.DNSName`, trailing dot removed), plus `:8443` for TabGod.
+
+## CORS
+
+- Allowed origins, exact match: `https://dmftrading.co.uk`, `https://www.dmftrading.co.uk`. A dev switch (off by
+  default) may add `http://localhost:8765` and `http://127.0.0.1:8765`.
+- A request with any other `Origin` gets 403 `{"error":"origin"}`. A request without `Origin` is allowed (curl,
+  tests): the token still guards it.
+- `OPTIONS` preflight from an allowed origin: 204 with
+  `Access-Control-Allow-Origin: <that origin>`, `Access-Control-Allow-Methods: GET, POST, PUT, DELETE`,
+  `Access-Control-Allow-Headers: Authorization, Content-Type`, `Access-Control-Max-Age: 600`, `Vary: Origin`.
+- Every answer to an allowed origin carries `Access-Control-Allow-Origin: <origin>` and `Vary: Origin`. No cookies,
+  no `Allow-Credentials`.
+
+## Auth
+
+- `Authorization: Bearer <token>` on everything but `GET /v1/hello` and `POST /v1/pair`.
+- Token: 32 random bytes, base64url, made at pairing. The PC stores only `sha256(token)` (hex) per device and
+  compares with `hmac.compare_digest`. Wrong or missing token: 401 `{"error":"token"}` (the app then shows
+  "Pair again").
+
+## Endpoints
+
+### `GET /v1/hello` (no auth)
+`{"app":"smu","protocol":1,"version":"2.7.0"}`. Nothing else: no names, no ids.
+
+### `POST /v1/pair` (no auth)
+Request `{"code":"K7Q2-9XMP","device_name":"iPhone"}`. The code is matched case-insensitively with `-`, spaces,
+`O`->`0`, `I`/`L`->`1` normalised. Answer 200:
+```json
+{"token":"<base64url>","device_id":"d_3f9a1c","app":"smu",
+ "pc":{"id":"<16 hex, same as /v1/status device.id>","name":"ZBook"},
+ "vapid_public_key":"<base64url, uncompressed P-256 point, 65 bytes>"}
+```
+Errors: 400 `{"error":"bad request"}`, 403 `{"error":"code"}` (wrong, used or expired), 429 `{"error":"slow down"}`,
+409 `{"error":"full"}`.
+
+Pairing codes: the PC's Settings "Pair a phone" makes a new code each time it opens: 8 characters from
+`0123456789ABCDEFGHJKMNPQRSTVWXYZ`, shown `XXXX-XXXX`, one use, valid 10 minutes, dead after 5 wrong tries.
+The Settings screen shows a QR whose text is exactly:
+```json
+{"lmk":1,"app":"smu","url":"https://zbook.tail1234.ts.net","pc":"<pc id>","name":"ZBook","code":"K7Q2-9XMP"}
+```
+and under it, for typing: the address (`zbook.tail1234.ts.net`, or `...:8443` for TabGod) and the code.
+`device_name`: 1-40 characters, trimmed; the PC keeps it as a label only.
+
+### `PUT /v1/devices/me`
+Request `{"push": <PushSubscription.toJSON()> | null, "name": "iPad"}` (each key optional). `push` is
+`{"endpoint":"https://web.push.apple.com/...","keys":{"p256dh":"...","auth":"..."}}`. The endpoint must be
+`https://` on a known push service host (`*.push.apple.com`, `fcm.googleapis.com`,
+`updates.push.services.mozilla.com`, `*.notify.windows.com`), else 400. Answer `{"ok":true}`.
+
+### `GET /v1/devices`
+```json
+{"devices":[{"id":"d_3f9a1c","name":"iPhone","paired_at":"2026-11-01T00:10:00+00:00",
+             "last_seen":"2026-11-01T00:12:31+00:00","push":true,"me":true}]}
+```
+
+### `DELETE /v1/devices/<id>` and `DELETE /v1/devices/me`
+Removes that device: token and push subscription gone at once. Any paired device may remove any other (a lost iPad
+is removed from the iPhone too). Answer `{"ok":true}`; unknown id 404. The PC's own Settings lists the same devices
+with a Remove button each.
+
+### `POST /v1/devices/me/test`
+Sends one test push to the calling device now (`kind: "test"`). `{"ok":true}`, or 409 `{"error":"no push"}` when
+it has no subscription, 502 `{"error":"push failed","status":<push service status>}`.
+
+### `POST /v1/token/rotate`
+Answers `{"token":"<new>"}`; the old token stops working once the new one has been used once, or after 10 minutes.
+The app rotates every 30 days; a 404 here (not built yet) is ignored.
+
+### `GET /v1/status`
+SMU's existing `status_view()` plus `"app"` and `"protocol"`:
+```json
+{"app":"smu","protocol":1,
+ "device":{"name":"ZBook","id":"a1b2c3d4e5f60718","active":true},
+ "tasks":[{"id":"t1","name":"Gym list","done":12,"failed":1,"left":30,"running":true,
+           "needs_you":false,"needs_you_reason":null,"learned":true,
+           "per_person_seconds":95,"gap_seconds":20,"eta_seconds":2830,"eta_at":"2026-11-01T00:58:10+00:00"}]}
+```
+- `device.active`: a run is on right now on this PC. `eta_at`: ISO 8601 with offset, `null` until learned.
+- TabGod answers the same shape with `"app":"tabgod"`; fields it has no meaning for are `null` or left out.
+- The app ignores unknown fields and treats a missing one as unknown; new fields can be added at any time.
+- `needs_you_reason`: a few words (e.g. "A question", "Needs attention", IWM's notice sentence). Never a
+  person's value.
+
+## Push
+
+- Web Push (RFC 8030) with VAPID (RFC 8292), payload encrypted `aes128gcm` (RFC 8291). Python: `pywebpush` (or
+  `cryptography` + ~120 lines); Node/Electron: the `web-push` package.
+- VAPID JWT: `aud` = the endpoint's origin, `exp` <= 12 h, `sub` = `mailto:info@dmftrading.co.uk`.
+- Key: **one P-256 pair for all of the owner's PCs and both apps** (a phone's one push subscription is bound to one
+  key; `subscribe()` with another key fails). Kept in `%LOCALAPPDATA%\LetMeKnow-signing\vapid_private.pem`
+  (PKCS#8 PEM). Backup: `C:\Users\danie\OneDrive\Desktop\App's\Signing Keys\LetMeKnow\vapid_private.pem` +
+  `SOURCE.txt`. On start: if one side is missing copy it from the other; if both are missing make it once (and
+  write both); if they differ, stop pushing and say so in Settings. Never commit, log or print it.
+- Headers: `TTL: 3600` (needs_you) or `86400` (others), `Urgency: high` for needs_you else `normal`,
+  `Topic: <app>-<task id>` (newest replaces an undelivered older one; Topic allows only URL-safe base64
+  characters, at most 32).
+- Payload (JSON, UTF-8, under 1 KB):
+```json
+{"v":1,"app":"smu","kind":"needs_you","pc":"a1b2c3d4e5f60718","pc_name":"ZBook",
+ "task":"t1","task_name":"Gym list","title":"ZBook needs you","body":"Gym list: A question",
+ "at":"2026-11-01T00:12:31+00:00"}
+```
+  `kind`: `needs_you` | `finished` | `failed` | `stopped` | `test`. `title`/`body` are what the phone shows; the
+  phone falls back to its own words when they are missing.
+- When a push fires (per task):
+  - `needs_you`: `needs_you` turns true, or its reason changes while true. Body `<task>: <reason>`.
+  - `finished`: a run ends with nobody left. Body `<task>: done - <done> done, <failed> failed`.
+  - `failed`: a run ends on an error that stops it (not one person failing and the run going on). Body
+    `<task>: stopped - <reason>`.
+  - `stopped`: the run stopped without the owner pressing Pause/Stop on that PC (e.g. the AI went away).
+  - Not on the owner's own Pause/Stop, not for each person done.
+- At most one push per task per 60 s. Inside the window keep only the newest event (needs_you beats the others) and
+  send it when the window ends, if it still holds.
+- Push service answers: 201 ok; 404/410 drop that device's subscription (keep the pairing); 413 shorten the body;
+  429/5xx retry once after `Retry-After` (default 60 s), then drop that one push.
+
+## Limits
+
+- `POST /v1/pair`: 5 a minute per PC in all; a code is dead after 5 wrong tries.
+- Everything else: 120 a minute per token; `/v1/status` may be answered from a 2 s cache.
+- At most 10 paired devices per app per PC; pairing an 11th answers 409 `{"error":"full"}`.
+- A device unseen for 30 days whose push subscription is dead (404/410) is removed.
+
+## Phone side (for reference)
+
+Stores per PC: `{app, url, pc, name, token, deviceId, vapid}` in `localStorage` (`lmk.v1`). Polls `/v1/status`
+every 10 s while open; `PUT /v1/devices/me` with its subscription after alerts are turned on and whenever the
+subscription's endpoint changes; `DELETE /v1/devices/me` on Remove.
