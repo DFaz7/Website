@@ -4,10 +4,11 @@ import * as store from "./lib/store.mjs";
 import { startScan } from "./lib/scan.mjs";
 import {
   APP_NAMES, STATE_LABELS, agoText, b64urlToBytes, buildBoard, guessDeviceName, needsYouCount, normalizeAddress,
-  normalizeCode, normalizeStatus, notRunningTitle, parsePairing, rowTime, stateNote, tailnetSuffix,
+  normalizeCode, normalizeStatus, notRunningTitle, parsePairing, perPersonText, rowTime, stateNote, tailnetSuffix,
+  taskState, whatToDo, whatsWrong, whenText,
 } from "./lib/status.mjs";
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 const POLL_MS = 10_000;
 const ROTATE_MS = 30 * 24 * 3600 * 1000;
 
@@ -81,6 +82,17 @@ function activeRow(r) {
   const t = r.task;
   const card = el("article", t.needsYou ? "card item needs-row" : "card item");
   card.dataset.row = r.id;
+  // The whole row opens its detail view.
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", `${APP_NAMES[r.app] || "App"} on ${r.device}, ${t.name}${t.needsYou ? `, needs you: ${t.reason}` : ""}. Show details`);
+  card.addEventListener("click", () => openDetail(r.pcKey, t.id));
+  card.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openDetail(r.pcKey, t.id);
+    }
+  });
   const top = el("div", "item-top");
   const time = el("span", "item-left");
   time.dataset.left = "1";
@@ -173,6 +185,7 @@ function renderList() {
 
 function render() {
   renderList();
+  if (detailOf) renderDetail();
   badge();
 }
 
@@ -190,6 +203,136 @@ function tick() {
     left.classList.toggle("learning", r.task.learned === false);
     card.querySelector("[data-by]").textContent = t.by;
   }
+  if (detailOf) renderDetail();
+}
+
+// ---------- Detail view: what the issue is and what to do ----------
+
+let detailOf = null; // { key, taskId } of the open detail view
+let homeScroll = 0;
+
+function factRow(label, value, cls = "") {
+  const row = el("div", `fact ${cls}`.trim());
+  row.append(el("span", "fact-label", label), el("span", "fact-value", value));
+  return row;
+}
+
+function group(title) {
+  return el("h3", "group", title);
+}
+
+function renderDetail() {
+  const body = $("detail-body");
+  const pc = state.pcs.find((p) => p.key === detailOf.key);
+  const l = (pc && live.get(pc.key)) || {};
+  const t = l.status && l.status.tasks.find((x) => x.id === detailOf.taskId);
+  const now = Date.now();
+  const nodes = [];
+  if (!pc || !t) {
+    const box = el("div", "card nothing");
+    box.append(el("b", null, "This task isn't on the list any more"),
+      el("span", null, pc ? `${pcName(pc)} no longer shows it. It may have finished or been removed.` : "That PC was removed."));
+    body.replaceChildren(box);
+    return;
+  }
+  const device = pcName(pc);
+
+  const top = el("div", "card detail-top");
+  const line = el("div", "item-top");
+  line.append(appBadge(pc.app), el("span", "item-device", device));
+  const st = taskState(t);
+  const pill = el("span", t.needsYou ? "pill red" : t.running ? "pill on" : "pill", st);
+  const name = el("h2", "detail-task", t.name);
+  const upd = el("span", "updated", l.error ? `Can't reach ${device} · last known ${agoText(now - (l.okAt || now))}` : l.okAt ? `Updated ${agoText(now - l.okAt)}` : "");
+  top.append(line, name);
+  const meta = el("div", "detail-meta");
+  meta.append(pill, upd);
+  top.append(meta);
+  nodes.push(top);
+
+  const wrong = whatsWrong(pc.app, t, now);
+  if (wrong) {
+    nodes.push(group("What's wrong"));
+    const box = el("div", "card wrong");
+    box.append(el("p", "wrong-title", wrong.title));
+    if (wrong.kind && wrong.kind.toLowerCase() !== wrong.title.toLowerCase()) box.append(el("p", "wrong-kind", wrong.kind));
+    for (const [k, v] of wrong.facts) box.append(factRow(k, v));
+    nodes.push(box);
+    nodes.push(group("What to do"));
+    const todo = el("div", "card todo");
+    todo.append(el("p", null, whatToDo(pc.app, t, device)));
+    nodes.push(todo);
+  } else {
+    const ok = el("div", "card todo calm");
+    ok.append(el("p", null, t.running ? "Nothing needed from you right now. It carries on by itself." : "Nothing needed from you right now."));
+    nodes.push(ok);
+  }
+
+  nodes.push(group("Progress"));
+  const prog = el("div", "card progress");
+  const tiles = el("div", "tiles");
+  for (const [label, v, bad] of [["Done", t.done], ["Failed", t.failed, true], ["Left", t.left]]) {
+    const tile = el("div", bad && v ? "tile bad" : "tile");
+    tile.append(el("b", null, v == null ? "–" : String(v)), el("span", null, label));
+    tiles.append(tile);
+  }
+  prog.append(tiles);
+  const rt = rowTime(t, now, l.fetchedAt);
+  prog.append(factRow("Time left", rt.left ? (rt.left === "learning the form" ? rt.left : `about ${rt.left}`) : t.left === 0 ? "none: everyone is done" : "not known yet"));
+  if (rt.by) prog.append(factRow("Finish", rt.by.replace(/^done by /, "about ")));
+  prog.append(factRow("Per person", t.perPersonSeconds != null ? `about ${perPersonText(t.perPersonSeconds)}` : "not known yet"));
+  nodes.push(prog);
+
+  nodes.push(group("Recent problems"));
+  const rec = el("div", "card recent");
+  const recent = (t.detail && t.detail.recent) || [];
+  if (!recent.length) {
+    rec.append(el("p", "muted pad", t.detail ? "None reported." : `None reported. ${APP_NAMES[pc.app] || "The app"} on ${device} doesn't send them yet.`));
+  }
+  for (const p of recent) {
+    const row = el("div", "problem");
+    const head = el("div", "problem-head");
+    head.append(el("span", p.result === "skipped" ? "chip" : "chip red", p.result === "skipped" ? "Skipped" : "Failed"),
+      el("span", "problem-at", p.at != null ? whenText(p.at, now) : ""));
+    row.append(head, el("p", null, p.reason || "No reason given."));
+    rec.append(row);
+  }
+  nodes.push(rec);
+  body.replaceChildren(...nodes);
+}
+
+function openDetail(key, taskId) {
+  homeScroll = scrollY;
+  detailOf = { key, taskId };
+  renderDetail();
+  show("detail");
+  try {
+    history.pushState({ lmk: "detail" }, "");
+  } catch {
+    // no history here: the Back button still works
+  }
+  $("detail-back").focus();
+}
+
+function closeDetail() {
+  if (!detailOf) return;
+  const id = `${detailOf.key}/${detailOf.taskId}`;
+  detailOf = null;
+  show("home");
+  scrollTo(0, homeScroll);
+  const row = [...document.querySelectorAll("#list [data-row]")].find((n) => n.dataset.row === id);
+  if (row) row.focus({ preventScroll: true });
+}
+
+function setupDetail() {
+  $("detail-back").addEventListener("click", () => {
+    if (history.state && history.state.lmk === "detail") history.back(); // closes through popstate
+    else closeDetail();
+  });
+  addEventListener("popstate", () => closeDetail());
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && detailOf) $("detail-back").click();
+  });
 }
 
 function badge() {
@@ -662,6 +805,7 @@ function init() {
   setupSettings();
   setupPull();
   for (const b of document.querySelectorAll("[data-close]")) b.addEventListener("click", closeSheet);
+  setupDetail();
   document.addEventListener("click", (e) => {
     if (e.target.closest("#settings [data-add]")) openAdd();
   });

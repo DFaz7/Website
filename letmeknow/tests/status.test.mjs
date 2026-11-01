@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import * as S from "../lib/status.mjs";
 import * as store from "../lib/store.mjs";
 import {
   STATE_LABELS, agoText, b64urlToBytes, buildBoard, clockText, guessDeviceName, leftText, needsYouCount,
@@ -292,4 +293,108 @@ test("the main screen has no app tabs any more", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.ok(!html.includes('role="tablist"'));
   assert.ok(html.includes('id="list"'));
+});
+
+// ---------- Detail view ----------
+
+const T0 = Date.parse("2026-11-01T03:00:00Z");
+const one = (t) => S.normalizeStatus({ tasks: [t] }).tasks[0];
+
+test("detail parses: kind, step, page, since, what to do, newest 5 problems", () => {
+  const recent = Array.from({ length: 7 }, (_, i) => ({ at: new Date(T0 - i * 60_000).toISOString(), reason: `r${i}`, result: i === 1 ? "skipped" : "odd" }));
+  const t = one({ needs_you: true, needs_you_reason: "Needs attention", detail: { kind: "attention", step: "Date of birth",
+    page: "Step 2 of 4", since: "2026-11-01T02:54:00Z", what_to_do: "Do it.", recent: [...recent].reverse(), extra: 1 } });
+  assert.equal(t.detail.kind, "attention");
+  assert.equal(t.detail.step, "Date of birth");
+  assert.equal(t.detail.page, "Step 2 of 4");
+  assert.equal(t.detail.since, Date.parse("2026-11-01T02:54:00Z"));
+  assert.equal(t.detail.whatToDo, "Do it.");
+  assert.deepEqual(t.detail.recent.map((r) => r.reason), ["r0", "r1", "r2", "r3", "r4"]);
+  assert.deepEqual(t.detail.recent.map((r) => r.result), ["failed", "skipped", "failed", "failed", "failed"]);
+  assert.equal("extra" in t.detail, false);
+});
+
+test("a missing or broken detail is null, odd parts are dropped, never an error", () => {
+  assert.equal(one({}).detail, null);
+  assert.equal(one({ detail: "x" }).detail, null);
+  assert.equal(one({ detail: [] }).detail, null);
+  const d = one({ detail: { kind: "<script>", step: 5, since: "later", recent: [null, 3, { reason: "" }, { at: "x", reason: "ok" }] } }).detail;
+  assert.deepEqual(d, { kind: "", step: "", page: "", since: null, whatToDo: "", recent: [{ at: null, result: "failed", reason: "ok" }] });
+});
+
+test("emails and IP addresses are masked as a second guard", () => {
+  const t = one({ needs_you: true, needs_you_reason: "Sent to jo.bloggs+x@mail.example.co.uk from 192.168.1.20",
+    detail: { step: "fe80:0:0:0:1:2:3:4", recent: [{ reason: "a@b.io bounced" }] } });
+  assert.equal(t.reason, "Sent to [email] from [address]");
+  assert.equal(t.detail.step, "[address]");
+  assert.equal(t.detail.recent[0].reason, "[email] bounced");
+  assert.equal(S.scrub("Step 2 of 4, version 1.2.0"), "Step 2 of 4, version 1.2.0");
+});
+
+test("kind: from the detail, else from SMU's own reasons; other SMU reasons are IWM's; TabGod waits are stuck", () => {
+  const smu = (reason, detail) => S.kindOf("smu", one({ needs_you: true, needs_you_reason: reason, detail }));
+  assert.equal(smu("Needs attention"), "attention");
+  assert.equal(smu("A question"), "question");
+  assert.equal(smu("Is this the form's email?"), "email_check");
+  assert.equal(smu("Watching you fill the form"), "watching");
+  assert.equal(smu("Finish your own sign-up"), "finish");
+  assert.equal(smu("IWM can't find the browser window"), "iwm");
+  assert.equal(smu("A question", { kind: "attention" }), "attention");
+  assert.equal(S.kindOf("tabgod", one({ needs_you: true, needs_you_reason: "Both AIs couldn't do a step" })), "stuck");
+  assert.equal(S.kindOf("smu", one({ running: true })), "");
+});
+
+test("what to do: plain words naming the PC, for each app and kind", () => {
+  const todo = (app, reason, device = "ZBook", detail) => S.whatToDo(app, one({ needs_you: true, needs_you_reason: reason, detail }), device);
+  assert.equal(todo("smu", "Needs attention"), "On ZBook, open SMU, press Show SMU, do the step yourself, then press Carry on.");
+  assert.equal(todo("smu", "A question"), "Answer SMU's question on ZBook.");
+  assert.equal(todo("smu", "IWM lost the page"), "Fix it in IWM on ZBook; SMU carries on when IWM moves on.");
+  assert.equal(todo("smu", "Is this the form's email?"), "On ZBook, open SMU and say whether this is the form's email.");
+  assert.equal(todo("smu", "Finish your own sign-up"), "On ZBook, finish your own sign-up in the browser, then press I've finished in SMU.");
+  assert.equal(todo("tabgod", "Both AIs couldn't do a step", "Mini 2"), "Open TabGod on Mini 2, the window was left for you on that profile.");
+  assert.equal(todo("smu", "", "ZBook", { kind: "new_kind" }), "Open SMU on ZBook to see what it needs.");
+  assert.equal(todo("smu", "A question", "ZBook", { what_to_do: "Press Yes on ZBook." }), "Press Yes on ZBook.");
+  assert.equal(todo("smu", "A question", ""), "Answer SMU's question on the PC.");
+  assert.equal(S.whatToDo("smu", one({ running: true }), "ZBook"), "");
+});
+
+test("what's wrong: the full reason and the known facts; never blank", () => {
+  const t = one({ needs_you: true, needs_you_reason: "Needs attention",
+    detail: { kind: "attention", step: "Date of birth", page: "Step 2 of 4", since: new Date(T0 - 12 * 60_000).toISOString() } });
+  assert.deepEqual(S.whatsWrong("smu", t, T0), { title: "Needs attention", kind: "Stuck on a step",
+    facts: [["Step", "Date of birth"], ["Page", "Step 2 of 4"], ["Waiting", "12 min"]] });
+  const bare = one({ needs_you: true });
+  assert.deepEqual(S.whatsWrong("tabgod", bare, T0), { title: "Stuck on a step", kind: "Stuck on a step", facts: [] });
+  assert.equal(S.whatsWrong("smu", one({ needs_you: true, detail: { since: new Date(T0 - 5000).toISOString() } }), T0).facts[0][1], "under a minute");
+  assert.equal(S.whatsWrong("smu", one({ running: true }), T0), null);
+});
+
+test("per-person time, problem times and the task's state line", () => {
+  assert.equal(S.perPersonText(95), "1 min 35 s");
+  assert.equal(S.perPersonText(120), "2 min");
+  assert.equal(S.perPersonText(45), "45 s");
+  assert.equal(S.perPersonText(7500), "2 h 5 min");
+  assert.equal(S.perPersonText(null), "");
+  assert.equal(S.whenText(T0 - 15 * 60_000, T0, "UTC"), "02:45");
+  assert.equal(S.whenText(T0 - 26 * 3600_000, T0, "UTC"), "31 Oct 01:00");
+  assert.equal(S.taskState(one({ needs_you: true, running: true })), "Needs you");
+  assert.equal(S.taskState(one({ running: true, learned: false })), "Running · learning the form");
+  assert.equal(S.taskState(one({ running: true })), "Running");
+  assert.equal(S.taskState(one({ left: 0 })), "Finished");
+  assert.equal(S.taskState(one({ left: 3 })), "Not running");
+});
+
+test("per-person and gap seconds are kept for the detail view", () => {
+  const t = one({ per_person_seconds: 95, gap_seconds: "20" });
+  assert.equal(t.perPersonSeconds, 95);
+  assert.equal(t.gapSeconds, 20);
+});
+
+test("version 1.2.0 in both app and service worker; the detail view is in the page", () => {
+  const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+  assert.match(app, /VERSION = "1\.2\.0"/);
+  assert.match(sw, /VERSION = "1\.2\.0"/);
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.ok(html.includes('id="detail"') && html.includes('id="detail-back"'));
 });

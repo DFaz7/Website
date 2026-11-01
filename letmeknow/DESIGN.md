@@ -13,6 +13,10 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
   left with the finish time (or "learning the form"), done / failed / left, and "Needs you: <reason>" when set.
   Order: needs you first (by device, then task name); then running by time left, least first; then running without
   an estimate yet, by task name; ties by device name, then app.
+- Tapping a row opens its detail view: "What's wrong" (the full reason, the step and page it's stuck on, how long
+  it has waited), "What to do" in plain words (the PC's own sentence, else one for the app and the kind of wait),
+  progress (done / failed / left, time left, finish, per person) and the last few problems. Works with today's
+  /v1/status and fills in more when a PC sends the optional `detail` (PROTOCOL.md).
 - Below it, a collapsed "Not running" section lists every paired PC/app pair with nothing active: not paired, can't
   reach, error, connecting, then idle, so nothing silently disappears.
 - Push alerts whenever an app needs the owner (both AIs couldn't do a step, a question, a stuck profile, IWM's own

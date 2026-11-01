@@ -20,6 +20,37 @@ function when(v) {
   return Number.isFinite(t) ? t : null;
 }
 
+// A second guard after the PC's own: email addresses and IP addresses never reach the screen.
+export function scrub(s) {
+  return s
+    .replace(/[^\s@<>()"',;]+@[^\s@<>()"',;]+\.[a-z]{2,}/gi, "[email]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[address]")
+    .replace(/\b(?:[0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}\b/gi, "[address]");
+}
+
+const text = (v, max) => scrub(str(v, max));
+
+const RESULTS = ["failed", "skipped"];
+
+// The optional `detail` of a task (PROTOCOL.md): null when missing or unusable; at most 5 recent problems, newest first.
+export function normalizeDetail(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const recent = (Array.isArray(raw.recent) ? raw.recent : [])
+    .filter((x) => x && typeof x === "object")
+    .map((x) => ({ at: when(x.at), result: RESULTS.includes(x.result) ? x.result : "failed", reason: text(x.reason, 200) }))
+    .filter((x) => x.reason || x.at != null)
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
+    .slice(0, 5);
+  return {
+    kind: /^[a-z_]{1,24}$/.test(raw.kind || "") ? raw.kind : "",
+    step: text(raw.step, 80),
+    page: text(raw.page, 80),
+    since: when(raw.since),
+    whatToDo: text(raw.what_to_do, 240),
+    recent,
+  };
+}
+
 // A status answer as the app uses it. Anything missing or odd becomes null/""/false; unknown fields are dropped.
 export function normalizeStatus(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -27,8 +58,11 @@ export function normalizeStatus(raw) {
   const tasks = (Array.isArray(r.tasks) ? r.tasks : [])
     .filter((t) => t && typeof t === "object")
     .map((t, i) => {
-      const reason = str(t.needs_you_reason, 160);
+      const reason = text(t.needs_you_reason, 300);
       return {
+        perPersonSeconds: count(t.per_person_seconds),
+        gapSeconds: count(t.gap_seconds),
+        detail: normalizeDetail(t.detail),
         id: str(String(t.id ?? i), 64) || String(i),
         name: str(t.name, 80) || "Task",
         done: count(t.done),
@@ -166,6 +200,101 @@ export function stateNote(row) {
 export function notRunningTitle(rows) {
   const bad = rows.filter((r) => r.state === "offline" || r.state === "token" || r.state === "error").length;
   return { title: `Not running · ${rows.length}`, note: bad ? `${bad} ${bad === 1 ? "needs" : "need"} a look` : "" };
+}
+
+// ---------- The detail view ----------
+
+// SMU's own wait reasons (smu_app.pyw wait_reason) and the kind each one means.
+const SMU_REASONS = {
+  "needs attention": "attention",
+  "a question": "question",
+  "is this the form's email?": "email_check",
+  "watching you fill the form": "watching",
+  "finish your own sign-up": "finish",
+};
+
+// What kind of wait this is: the PC's detail.kind when sent, else read from the reason. For SMU any other reason is
+// IWM's notice; for TabGod every wait is a profile left open for the owner.
+export function kindOf(app, task) {
+  if (task.detail && task.detail.kind) return task.detail.kind;
+  if (!task.needsYou) return "";
+  if (app === "tabgod") return "stuck";
+  if (app === "smu") return SMU_REASONS[task.reason.toLowerCase()] || (task.reason ? "iwm" : "attention");
+  return "stuck";
+}
+
+export const KIND_TITLES = {
+  attention: "Stuck on a step",
+  question: "A question for you",
+  email_check: "Checking the form's email",
+  watching: "Waiting for you to fill the form",
+  finish: "Your own sign-up to finish",
+  iwm: "IWM needs you",
+  stuck: "Stuck on a step",
+};
+
+// "What to do", in plain words. The PC's own sentence wins; otherwise one for the app and the kind of wait.
+export function whatToDo(app, task, device) {
+  if (!task.needsYou) return "";
+  if (task.detail && task.detail.whatToDo) return task.detail.whatToDo;
+  const on = device || "the PC";
+  if (app === "tabgod") return `Open TabGod on ${on}, the window was left for you on that profile.`;
+  if (app !== "smu") return `Open the app on ${on} to see what it needs.`;
+  switch (kindOf(app, task)) {
+    case "attention":
+      return `On ${on}, open SMU, press Show SMU, do the step yourself, then press Carry on.`;
+    case "question":
+      return `Answer SMU's question on ${on}.`;
+    case "email_check":
+      return `On ${on}, open SMU and say whether this is the form's email.`;
+    case "watching":
+      return `On ${on}, fill the form yourself while SMU watches, then press Done.`;
+    case "finish":
+      return `On ${on}, finish your own sign-up in the browser, then press I've finished in SMU.`;
+    case "iwm":
+      return `Fix it in IWM on ${on}; SMU carries on when IWM moves on.`;
+    default:
+      return `Open SMU on ${on} to see what it needs.`;
+  }
+}
+
+// "What's wrong": the headline and the facts that are known. Never empty for a task that needs the owner.
+export function whatsWrong(app, task, now) {
+  if (!task.needsYou) return null;
+  const d = task.detail || {};
+  const kind = kindOf(app, task);
+  const facts = [];
+  if (d.step) facts.push(["Step", d.step]);
+  if (d.page) facts.push(["Page", d.page]);
+  if (d.since != null) facts.push(["Waiting", now - d.since < 60_000 ? "under a minute" : leftText((now - d.since) / 1000)]);
+  return { title: task.reason || KIND_TITLES[kind] || "It needs you", kind: KIND_TITLES[kind] || "", facts };
+}
+
+// "1 min 35 s", "45 s", "2 h 5 min": time per person.
+export function perPersonText(secs) {
+  if (secs == null) return "";
+  if (secs < 60) return `${Math.max(1, Math.round(secs))} s`;
+  if (secs < 3600) {
+    const m = Math.floor(secs / 60), s = Math.round(secs % 60);
+    return s ? `${m} min ${s} s` : `${m} min`;
+  }
+  return leftText(secs);
+}
+
+// "14:05" today, "31 Oct 14:05" on another day.
+export function whenText(ms, now, timeZone) {
+  const day = (t) => new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "numeric", day: "numeric" }).format(new Date(t));
+  if (day(ms) === day(now)) return clockText(ms, timeZone);
+  const d = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric", month: "short" }).format(new Date(ms));
+  return `${d} ${clockText(ms, timeZone)}`;
+}
+
+// The status line at the top of the detail view.
+export function taskState(task) {
+  if (task.needsYou) return "Needs you";
+  if (task.running) return task.learned === false ? "Running · learning the form" : "Running";
+  if (task.left === 0) return "Finished";
+  return "Not running";
 }
 
 // "just now", "12 s ago", "3 min ago", "2 h ago".

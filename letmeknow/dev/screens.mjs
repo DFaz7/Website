@@ -128,13 +128,42 @@ try {
 
   const open = `document.querySelector(".quiet").open = true; document.querySelector(".quiet").dispatchEvent(new Event("toggle"))`;
   const settings = `document.getElementById("open-settings").click()`;
-  for (const scheme of ["light", "dark"]) {
-    await view(`iphone-active-${scheme}`, 390, 844, IPHONE_UA, scheme);
-    await view(`iphone-full-${scheme}`, 390, 844, IPHONE_UA, scheme, open, true);
-    await view(`ipad-active-${scheme}`, 820, 1180, IPAD_UA, scheme);
-    await view(`ipad-full-${scheme}`, 820, 1180, IPAD_UA, scheme, open, true);
+  // The detail view of the Active row whose device and task match.
+  const detail = (device, task) => `[...document.querySelectorAll("#list [data-row]")].find((r) =>
+    r.querySelector(".item-device").textContent === ${JSON.stringify(device)} &&
+    r.querySelector(".item-task").textContent === ${JSON.stringify(task)}).click()`;
+  const scenes = (process.env.LMK_SCENES || "list,detail").split(",");
+  if (scenes.includes("list")) {
+    for (const scheme of ["light", "dark"]) {
+      await view(`iphone-active-${scheme}`, 390, 844, IPHONE_UA, scheme);
+      await view(`iphone-full-${scheme}`, 390, 844, IPHONE_UA, scheme, open, true);
+      await view(`ipad-active-${scheme}`, 820, 1180, IPAD_UA, scheme);
+      await view(`ipad-full-${scheme}`, 820, 1180, IPAD_UA, scheme, open, true);
+    }
+    await view("iphone-settings-light", 390, 844, IPHONE_UA, "light", settings, true);
   }
-  await view("iphone-settings-light", 390, 844, IPHONE_UA, "light", settings, true);
+  if (scenes.includes("detail")) {
+    for (const scheme of ["light", "dark"]) {
+      await view(`iphone-detail-attention-${scheme}`, 390, 844, IPHONE_UA, scheme, detail("ZBook", "Gym list"), true);
+      await view(`ipad-detail-attention-${scheme}`, 820, 1180, IPAD_UA, scheme, detail("ZBook", "Gym list"), true);
+    }
+    await view("iphone-detail-tabgod-light", 390, 844, IPHONE_UA, "light", detail("Mini 2", "Profiles batch C"), true);
+    await view("iphone-detail-running-dark", 390, 844, IPHONE_UA, "dark", detail("Mini 1", "Club members"), true);
+    await view("iphone-detail-learning-light", 390, 844, IPHONE_UA, "light", detail("Mini 2", "Book club"), true);
+    // Back: the button (through history), then the browser's own back, both return to the list.
+    const back = await evaluate(`(async () => {
+      const wait = () => new Promise((r) => setTimeout(r, 300));
+      const home = () => !document.getElementById("home").hidden && document.getElementById("detail").hidden;
+      const out = [home()];
+      document.getElementById("detail-back").click(); await wait(); out.push(home());
+      document.querySelector("#list [data-row]").click(); await wait(); out.push(home());
+      history.back(); await wait(); out.push(home());
+      document.querySelector("#list [data-row]").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" })); await wait();
+      out.push(home());
+      return out;
+    })()`);
+    console.log("back checks (want false,true,false,true,false):", back.join(","));
+  }
 } finally {
   try {
     ws?.close();

@@ -111,10 +111,21 @@ class FakePC:
                         "running": running, "needs_you": bool(why), "needs_you_reason": why or None,
                         "learned": per is not None, "per_person_seconds": per, "gap_seconds": t.get("gap"),
                         "eta_seconds": eta, "eta_at": now_iso(time.time() + eta) if eta is not None else None})
+            if t.get("detail"):
+                out[-1]["detail"] = self.detail(t["detail"])
             self.maybe_push(t["id"], t["name"], bool(why), why)
         return {"app": self.app, "protocol": 1,
                 "device": {"name": self.name, "id": self.id, "active": any(x["running"] for x in out)},
                 "tasks": out}
+
+    def detail(self, d: dict) -> dict:
+        """A task's detail (PROTOCOL.md), with "since" and each problem's time given as seconds before start."""
+        out = {k: v for k, v in d.items() if k in ("kind", "step", "page", "what_to_do")}
+        if "since_ago" in d:
+            out["since"] = now_iso(self.start - d["since_ago"])
+        out["recent"] = [{"at": now_iso(self.start - r["ago"]), "result": r.get("result", "failed"), "reason": r["reason"]}
+                         for r in d.get("recent", [])]
+        return out
 
     def maybe_push(self, tid: str, tname: str, needed: bool, why: str) -> None:
         was = self.was_needed.get(tid, False)
@@ -300,7 +311,12 @@ def fake_pcs() -> list[FakePC]:
     return [
         FakePC("ZBook", "smu", 8791, [
             {"id": "t1", "name": "Gym list", "done": 12, "failed": 1, "left": 30, "run": True, "per": 95, "gap": 20,
-             "asks": "A question"},
+             "asks": "Needs attention",
+             "detail": {"kind": "attention", "step": "Date of birth", "page": "Step 2 of 4", "since_ago": 360,
+                        "recent": [
+                            {"ago": 900, "reason": "The form said the email is already in use"},
+                            {"ago": 2400, "result": "skipped", "reason": "No email arrived within 10 minutes"},
+                        ]}},
             {"id": "t2", "name": "Newsletter sign-ups", "done": 0, "failed": 0, "left": 18, "per": None},
             {"id": "t3", "name": "Spring offers", "done": 40, "failed": 2, "left": 0, "per": 80, "gap": 15},
         ], busy=True),
@@ -310,7 +326,7 @@ def fake_pcs() -> list[FakePC]:
         ], busy=True),
         FakePC("Mini 1", "smu", 8793, [
             {"id": "m1", "name": "Club members", "done": 3, "failed": 0, "left": 70, "run": True, "per": 120,
-             "gap": 25},
+             "gap": 25, "detail": {"recent": [{"ago": 1500, "reason": "The page didn't load in time"}]}},
         ], busy=True),
         FakePC("Mini 1", "tabgod", 8794, [
             {"id": "g2", "name": "Profiles batch B", "done": 20, "failed": 1, "left": 12, "per": 240, "gap": 30},
