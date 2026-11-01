@@ -2,6 +2,7 @@
 // VERSION must match app.js; a change here is what makes phones pick up a new version.
 const VERSION = "1.0.0";
 const CACHE = `lmk-${VERSION}`;
+const LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 const SHELL = [
   "./",
   "index.html",
@@ -43,6 +44,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith(new URL("./", self.location).pathname)) return;
+  if (LOCAL) return; // testing on this computer: always the files on disk
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);

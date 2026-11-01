@@ -182,6 +182,7 @@ button { cursor: pointer; }
   width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--bg); font-size: 17px; color: var(--text);
 }
+.form input::placeholder { color: var(--muted); opacity: .55; }
 .form input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
 .muted { margin: 0; color: var(--muted); font-size: 15px; }
 .msg { margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--red-soft); color: var(--red); font-weight: 500; }
@@ -219,3 +220,4 @@ button { cursor: pointer; }
   .pull { transition: none; }
 }
 .row-actions { display: flex; gap: 8px; flex: none; }
+.row > div:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

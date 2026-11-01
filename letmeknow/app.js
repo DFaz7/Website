@@ -115,7 +115,7 @@ function pcCard(pc) {
   card.append(sub);
 
   if (l.error === "token") {
-    const w = el("div", "warnbox", `This ${state.deviceName} is no longer paired with ${pcName(pc)}.`);
+    const w = el("div", "warnbox", `This device is no longer paired with ${pcName(pc)}.`);
     w.append(el("br"), button("Pair again", "btn small ghost", openAdd));
     card.append(w);
     return card;
@@ -146,7 +146,7 @@ function renderList() {
   list.replaceChildren();
   const pcs = state.pcs.filter((p) => p.app === tab);
   if (!state.pcs.length) {
-    list.append(emptyState("No PCs yet", `Pair this ${state.deviceName} with SMU or TabGod on your PC to see its status here.`));
+    list.append(emptyState("No PCs yet", "Pair Let Me Know with SMU or TabGod on your PC to see its status here."));
   } else if (!pcs.length) {
     list.append(emptyState(`No PCs with ${APP_NAMES[tab]} yet`, `On the PC, open ${APP_NAMES[tab]}'s Settings and choose Pair a phone.`));
   } else {
@@ -363,7 +363,7 @@ async function doPair(p) {
     const name = pc.name || "the PC";
     let note = `Paired with ${name}.`;
     if (vapid && others.length && !others.includes(vapid)) {
-      note += ` Alerts from ${name} can't reach this ${state.deviceName}: it uses a different alert key from your other PCs.`;
+      note += ` Alerts from ${name} can't reach this device: it uses a different alert key from your other PCs.`;
     }
     message(note, true);
     syncPush();
@@ -555,7 +555,7 @@ async function toggleDevices(pc, row) {
 
 async function removePc(pc) {
   const name = pcName(pc);
-  if (!confirm(`Remove ${name} (${APP_NAMES[pc.app]})? This ${state.deviceName} stops showing it and getting its alerts.`)) return;
+  if (!confirm(`Remove ${name} (${APP_NAMES[pc.app]})? This device stops showing it and getting its alerts.`)) return;
   let told = true;
   try {
     await api.removeDevice(pc, "me");
