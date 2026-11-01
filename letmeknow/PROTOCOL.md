@@ -103,6 +103,37 @@ SMU's existing `status_view()` plus `"app"` and `"protocol"`:
 - `needs_you_reason`: a few words (e.g. "A question", "Needs attention", IWM's notice sentence). Never a
   person's value.
 
+#### Optional `detail` per task (for the phone's detail view)
+
+```json
+"detail": {"kind": "attention", "step": "Date of birth", "page": "Step 2 of 4",
+           "since": "2026-11-01T02:41:00+00:00",
+           "what_to_do": "On ZBook, open SMU, press Show SMU, do the step yourself, then press Carry on.",
+           "recent": [{"at": "2026-11-01T02:30:12+00:00", "result": "failed",
+                       "reason": "The form said the email is already in use"}]}
+```
+- Every key is optional; send `detail` whenever there is something in it (also on running tasks without a wait,
+  for `recent`). The phone shows what is there and falls back to its own words for the rest.
+- `kind`: what the wait is. `attention` (stuck on a step, Show SMU), `question` (SMU asks something),
+  `email_check` ("Is this the form's email?"), `watching` (the owner fills while SMU watches), `finish` (the owner's
+  own sign-up to finish), `iwm` (IWM's own notice), `stuck` (TabGod left a profile window for the owner). Lower
+  case letters and `_`, at most 24; new kinds may be added (the phone shows the reason and a generic step).
+- `step`: the label of the field or step it's stuck on (at most 80 characters). `page`: the page title, or
+  "step n of m" (at most 80). `since`: ISO 8601 with offset, when the wait began.
+- `what_to_do`: one plain sentence naming the PC and the buttons to press (at most 240). Missing: the phone uses its
+  own sentence for the app and kind.
+- `recent`: the last problems on this task, newest first, **at most 5**: `{"at": ISO, "result": "failed" |
+  "skipped", "reason": "<sentence, at most 200>"}`.
+
+#### Privacy rule for every text field (`needs_you_reason`, `detail.*`)
+
+Before anything leaves the PC, every text is stripped of the person's own values: their names, email addresses,
+phone numbers, date of birth, postal address and passwords, matched against the person's record being filled
+(case-insensitive, also with spaces and separators removed), and then, by pattern, any email address and any IP
+address (v4 and v6). A step label that is a field's name ("Date of birth") is fine; the value typed into it never
+is. A page title that contains any such value is replaced by "page n" (n = its position in the form). The phone
+masks email and IP patterns again as a second guard, but the PC's rule is what keeps people's details private.
+
 ## Push
 
 - Web Push (RFC 8030) with VAPID (RFC 8292), payload encrypted `aes128gcm` (RFC 8291). Python: `pywebpush` (or
