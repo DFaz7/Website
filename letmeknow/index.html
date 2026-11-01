@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://*.ts.net:* http://localhost:* http://127.0.0.1:*; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Let Me Know</title>
+<meta name="description" content="Your SMU and TabGod status on each PC, with an alert when you're needed.">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Let Me Know">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div id="update" class="update" hidden>
+  <span>A new version is ready.</span>
+  <button type="button" class="link" id="update-btn">Update</button>
+</div>
+
+<main id="home" class="view">
+  <header class="top">
+    <h1>Let Me Know</h1>
+    <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+  <div class="tabs" role="tablist" aria-label="App">
+    <button type="button" role="tab" id="tab-smu" data-app="smu" aria-selected="true">SMU<span class="dot" hidden></span></button>
+    <button type="button" role="tab" id="tab-tabgod" data-app="tabgod" aria-selected="false">TabGod<span class="dot" hidden></span></button>
+  </div>
+  <div class="pull" id="pull" aria-hidden="true"><span class="spinner"></span></div>
+  <section id="list" class="list" role="tabpanel" aria-live="polite"></section>
+  <p class="install-hint" id="install-hint" hidden>For alerts, add this app to your Home Screen: in Safari tap Share, then <b>Add to Home Screen</b>.</p>
+</main>
+
+<section id="add" class="view sheet" hidden aria-labelledby="add-title">
+  <header class="bar">
+    <button type="button" class="link" data-close>Cancel</button>
+    <h2 id="add-title">Add a PC</h2>
+    <span class="bar-gap"></span>
+  </header>
+  <div class="sheet-body">
+    <div id="scan-box" class="scan-box">
+      <video id="scan-video" playsinline muted></video>
+      <div class="scan-frame" aria-hidden="true"></div>
+      <p class="scan-note" id="scan-note">Point the camera at the QR code in SMU or TabGod: Settings, Pair a phone.</p>
+    </div>
+    <button type="button" class="btn ghost wide" id="show-type">Type code instead</button>
+    <form id="type-form" class="card form" hidden autocomplete="off">
+      <p class="muted" id="type-note">Type the address and code shown under the QR code on the PC.</p>
+      <label>PC address<input id="f-address" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="zbook.tail1234.ts.net" required></label>
+      <label>Code<input id="f-code" autocapitalize="characters" spellcheck="false" placeholder="K7Q2-9XMP" maxlength="12" required></label>
+      <button type="submit" class="btn wide" id="pair-btn">Pair</button>
+    </form>
+    <p class="msg" id="add-msg" role="alert" hidden></p>
+  </div>
+</section>
+
+<section id="settings" class="view sheet" hidden aria-labelledby="settings-title">
+  <header class="bar">
+    <span class="bar-gap"></span>
+    <h2 id="settings-title">Settings</h2>
+    <button type="button" class="link strong" data-close>Done</button>
+  </header>
+  <div class="sheet-body">
+    <h3 class="group">This device</h3>
+    <div class="card">
+      <label class="row-input">Name<input id="device-name" maxlength="40" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <p class="foot">The PCs show this name in their list of paired devices.</p>
+
+    <h3 class="group">Alerts</h3>
+    <div class="card">
+      <div class="row"><span id="push-state">Alerts are off</span><button type="button" class="btn small" id="push-btn">Turn on</button></div>
+      <div class="row" id="test-row" hidden><span>Send a test alert</span><button type="button" class="btn small ghost" id="test-btn">Send</button></div>
+    </div>
+    <p class="foot" id="push-foot">You get an alert when a PC needs you, or a run finishes or stops.</p>
+
+    <h3 class="group">Paired PCs</h3>
+    <div class="card" id="pc-list"></div>
+    <button type="button" class="btn ghost wide" data-add>Add a PC</button>
+
+    <p class="about" id="about"></p>
+  </div>
+</section>
+
+<template id="empty-tpl">
+  <div class="empty">
+    <img src="icons/icon-192.png" alt="" width="72" height="72">
+    <h2></h2>
+    <p></p>
+    <button type="button" class="btn" data-add>Add a PC</button>
+  </div>
+</template>
+</body>
+</html>
