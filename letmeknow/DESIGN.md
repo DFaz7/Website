@@ -8,9 +8,13 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
 
 - Installable on iPhone/iPad (iOS 16.4+) from Safari: Share -> Add to Home Screen. No App Store. Listed on the
   Downloads page next to the Vault app. Updates itself; nothing to reinstall.
-- Two tabs, SMU and TabGod. Each lists the paired PCs by name (ZBook, Mini 1, ...), shows which one is active now,
-  and per task only the key numbers: done, failed, left, running now, time left with the finish time (or "learning
-  the form"), and "Needs you: <reason>" when set.
+- One "Active" list of everything running or needing the owner, across all paired PCs and both apps. Each row shows
+  the app (SMU or TabGod badge, each in its own colour), the device name (ZBook, Mini 1, ...), the task name, time
+  left with the finish time (or "learning the form"), done / failed / left, and "Needs you: <reason>" when set.
+  Order: needs you first (by device, then task name); then running by time left, least first; then running without
+  an estimate yet, by task name; ties by device name, then app.
+- Below it, a collapsed "Not running" section lists every paired PC/app pair with nothing active: not paired, can't
+  reach, error, connecting, then idle, so nothing silently disappears.
 - Push alerts whenever an app needs the owner (both AIs couldn't do a step, a question, a stuck profile, IWM's own
   problems via SMU), and when a run finishes or stops.
 - PCs are named in their apps' Settings (SMU: "Which device this is"; TabGod gets the same; one name per PC, shared

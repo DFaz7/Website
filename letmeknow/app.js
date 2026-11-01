@@ -108,8 +108,9 @@ function quietRow(r) {
   line.append(appBadge(r.app), el("span", "item-device", r.device));
   txt.append(line, el("span", "sub", stateNote(r)));
   const right = el("div", "quiet-right");
-  right.append(el("span", r.state === "idle" || r.state === "connecting" ? "pill" : "pill warn", STATE_LABELS[r.state]));
+  // Not paired: the button says it (the note under the name too), so the name keeps its room on a phone.
   if (r.state === "token") right.append(button("Pair again", "btn small ghost", openAdd));
+  else right.append(el("span", r.state === "idle" || r.state === "connecting" ? "pill" : "pill warn", STATE_LABELS[r.state]));
   row.append(txt, right);
   return row;
 }

@@ -157,7 +157,7 @@ export const STATE_LABELS = { idle: "Idle", offline: "Can't reach", token: "Not 
 export function stateNote(row) {
   if (row.state === "idle") return row.left ? `Nothing running · ${row.left} left` : "Nothing running";
   if (row.state === "offline") return "Check that Tailscale is on, here and on the PC";
-  if (row.state === "token") return "Pair it again from the app's Settings on the PC";
+  if (row.state === "token") return "Not paired: pair it again from the app's Settings on the PC";
   if (row.state === "error") return "It answered with an error. Trying again";
   return "Waiting for the first answer";
 }

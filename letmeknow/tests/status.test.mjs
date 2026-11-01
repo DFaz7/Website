@@ -261,7 +261,7 @@ test("labels and notes for every state", () => {
   assert.deepEqual(STATE_LABELS, { idle: "Idle", offline: "Can't reach", token: "Not paired", error: "Error", connecting: "Connecting" });
   for (const s of Object.keys(STATE_LABELS)) assert.ok(stateNote({ state: s, left: 0 }).length > 5, s);
   assert.match(stateNote({ state: "offline" }), /Tailscale/);
-  assert.match(stateNote({ state: "token" }), /Pair it again/);
+  assert.match(stateNote({ state: "token" }), /^Not paired: pair it again/);
 });
 
 test("the collapsed section's title counts pairs and flags the ones to look at", () => {

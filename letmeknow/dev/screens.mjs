@@ -15,7 +15,8 @@ try {
 }
 
 const EDGE = process.env.EDGE || "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
-const SITE = "http://localhost:8765/letmeknow/";
+// The site's address; LMK_SITE when mock_pc.py runs with another --port.
+const SITE = process.env.LMK_SITE || "http://localhost:8765/letmeknow/";
 const PCS = [8791, 8792, 8793, 8794, 8795, 8796, 8797, 8798];
 const PORT = 9333;
 const out = process.argv[2] || "lmk_shots";

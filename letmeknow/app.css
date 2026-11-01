@@ -151,7 +151,7 @@ button { cursor: pointer; }
 .quiet-text { display: grid; gap: 3px; min-width: 0; }
 .quiet-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .quiet-line .item-device { font-size: 16px; font-weight: 600; }
-.quiet-text .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quiet-text .sub { font-size: 13px; color: var(--muted); line-height: 1.35; }
 .quiet-right { display: flex; align-items: center; gap: 8px; flex: none; }
 
 .pill { flex: none; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--tile); color: var(--muted); }
