@@ -44,3 +44,7 @@ published with the rest of the site at `/letmeknow/`. `letmeknow/DESIGN.md` expl
 - Screenshots: with the script running, `node letmeknow/dev/screens.mjs <folder>` (headless Edge).
 - Releasing a change: raise `VERSION` in both `letmeknow/sw.js` and `letmeknow/app.js`, so installed copies offer
   the update.
+- After pushing that to `main`, run
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File $env:USERPROFILE\.claude\scripts\app-versions.ps1`. It
+  rewrites `Desktop\Text\App versions.txt` from `VERSION` in `letmeknow/sw.js` on the pushed `main`. The
+  "App versions" logon task also runs it each time you log in.
