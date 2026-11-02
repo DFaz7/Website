@@ -8,7 +8,7 @@ import {
   taskState, whatToDo, whatsWrong, whenText,
 } from "./lib/status.mjs";
 
-export const VERSION = "1.2.0";
+export const VERSION = "2.0.0";
 const POLL_MS = 10_000;
 const ROTATE_MS = 30 * 24 * 3600 * 1000;
 

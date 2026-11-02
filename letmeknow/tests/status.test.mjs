@@ -390,11 +390,11 @@ test("per-person and gap seconds are kept for the detail view", () => {
   assert.equal(t.gapSeconds, 20);
 });
 
-test("version 1.2.0 in both app and service worker; the detail view is in the page", () => {
+test("version 2.0.0 in both app and service worker; the detail view is in the page", () => {
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-  assert.match(app, /VERSION = "1\.2\.0"/);
-  assert.match(sw, /VERSION = "1\.2\.0"/);
+  assert.match(app, /VERSION = "2\.0\.0"/);
+  assert.match(sw, /VERSION = "2\.0\.0"/);
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.ok(html.includes('id="detail"') && html.includes('id="detail-back"'));
 });
