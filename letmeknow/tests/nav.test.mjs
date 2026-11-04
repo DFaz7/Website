@@ -49,7 +49,7 @@ test("each screen's entry brings that screen back: home, add, settings, a task, 
     { screen: "detail", key: "tabgod:zb", taskId: "", view: "quefix" });
 });
 
-test("an alert tapped while adding a PC: back returns to Add a PC, then to the list", () => {
+test("an alert tapped while adding a PC: back returns to Add an app, then to the list", () => {
   const h = fakeHistory();
   h.remember("add");
   h.remember("detail", { key: "tabgod:zb", taskId: "", view: "quefix" }); // the alert opens the QueFix list

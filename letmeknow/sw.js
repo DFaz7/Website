@@ -1,6 +1,6 @@
 // Let Me Know service worker: the app shell offline, updates, and alerts.
 // VERSION must match app.js; a change here is what makes phones pick up a new version.
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 const CACHE = `lmk-${VERSION}`;
 const LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 const SHELL = [

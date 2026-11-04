@@ -12,7 +12,7 @@ import {
   reachText, rowTime, scannedText, tailnetSuffix, taskState, whatToDo, whatsWrong, whenText,
 } from "./lib/status.mjs";
 
-export const VERSION = "2.1.0";
+export const VERSION = "2.1.1";
 const POLL_MS = 10_000;
 const RESYNC_MS = 60_000; // a PC that missed the alert subscription is offered it again at most this often
 
@@ -286,7 +286,7 @@ function renderList() {
   }
   otherKeys = new Set(push.otherKeyPcs(state.pcs).map((p) => p.key));
   const nodes = buildGroups(entries(), now).map((g) => pcCard(g, now));
-  nodes.push(button("Add a PC", "btn ghost wide add-more", openAdd));
+  nodes.push(button("Add an app", "btn ghost wide add-more", openAdd));
   list.replaceChildren(...nodes);
   $("summary").hidden = false;
   if (had) {
@@ -1122,7 +1122,7 @@ function renderAlertSettings() {
   let note = "You get an alert when a PC needs you, or a run finishes or stops.";
   if (alertsNow === "off") btn.hidden = false;
   if (alertsNow === "on") test.hidden = false;
-  if (alertsNow === "nopc") note = "Pair a PC first: alerts turn on as you pair.";
+  if (alertsNow === "nopc") note = "Pair SMU or TabGod first: alerts turn on as you pair.";
   if (alertsNow === "nokey") note = "Your PCs don't send alerts yet. Update SMU or TabGod on them.";
   if (alertsNow === "install") note = "In Safari tap Share, then Add to Home Screen, and open Let Me Know from there.";
   if (alertsNow === "blocked") note = ios() ? "Turn them on in Settings, Notifications, Let Me Know." : "Allow notifications for this site in the browser's settings.";
