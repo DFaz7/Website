@@ -1,6 +1,6 @@
 // What this device remembers, in localStorage on the site's origin (an installed Home Screen app has its own copy).
 // { v: 1, deviceName, theme: "dark" | "light", pcs: [{ key, app, url, pc, name, token, deviceId, vapid, pushEndpoint,
-//   pairedAt, rotatedAt }] }
+//   pairedAt, rotatedAt, oldToken, rotateTriedAt }] }  (oldToken: kept until the new token has worked, lib/tokens.mjs)
 
 const KEY = "lmk.v1";
 
