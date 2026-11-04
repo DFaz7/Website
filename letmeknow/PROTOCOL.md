@@ -172,7 +172,8 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
   (PKCS#8 PEM). Backup: `C:\Users\danie\OneDrive\Desktop\App's\Signing Keys\LetMeKnow\vapid_private.pem` +
   `SOURCE.txt`. On start: if one side is missing copy it from the other; if both are missing make it once (and
   write both); if they differ, stop pushing and say so in Settings. Never commit, log or print it.
-- Headers: `TTL: 3600` (needs_you, queue) or `86400` (others), `Urgency: high` for needs_you, queue and a
+- Headers: `TTL: 3600` (needs_you), `600` (queue: a near-front alert older than 10 minutes is stale) or `86400`
+  (others), `Urgency: high` for needs_you, queue and a
   went-quiet stop (`kind: "stopped"`, `reason: "quiet"`) else `normal`, `Topic: <app>-<task id>`
   (`tabgod-qf-near` for queue; newest replaces an undelivered older one; Topic allows only URL-safe base64
   characters, at most 32).
