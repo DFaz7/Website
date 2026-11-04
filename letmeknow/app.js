@@ -2,6 +2,8 @@
 import * as api from "./lib/api.mjs";
 import * as push from "./lib/push.mjs";
 import * as store from "./lib/store.mjs";
+import * as tokens from "./lib/tokens.mjs";
+import { patchChildren } from "./lib/patch.mjs";
 import { startScan } from "./lib/scan.mjs";
 import {
   APP_NAMES, GROUP_LABELS, agoText, appNote, buildGroups, guessDeviceName, needsYouCount, normalizeAddress,
@@ -11,7 +13,6 @@ import {
 
 export const VERSION = "2.1.0";
 const POLL_MS = 10_000;
-const ROTATE_MS = 30 * 24 * 3600 * 1000;
 const RESYNC_MS = 60_000; // a PC that missed the alert subscription is offered it again at most this often
 
 const $ = (id) => document.getElementById(id);
@@ -306,7 +307,7 @@ function renderDetail() {
     const box = el("div", "card nothing");
     box.append(el("b", null, "This task isn't on the list any more"),
       el("span", null, pc ? `${pcName(pc)} no longer shows it. It may have finished or been removed.` : "That PC was removed."));
-    body.replaceChildren(box);
+    patchChildren(body, [box]);
     return;
   }
   const device = pcName(pc);
@@ -373,7 +374,8 @@ function renderDetail() {
     rec.append(row);
   }
   nodes.push(rec);
-  body.replaceChildren(...nodes);
+  // Rebuilt every second for the countdowns, but only changed text reaches the page (lib/patch.mjs).
+  patchChildren(body, nodes);
 }
 
 function openDetail(key, taskId) {
@@ -473,10 +475,28 @@ function badge() {
 
 // ---------- Fetching ----------
 
+// An API call with the PC's token as it is now in the store, falling back to the old token while a rotation is
+// unconfirmed (lib/tokens.mjs). Whatever that settles is kept.
+function authed(fn) {
+  return async (pc0, ...args) => {
+    const pc = state.pcs.find((p) => p.key === pc0.key) || pc0;
+    const { result, patch } = await tokens.callWithToken(pc, (token) => fn({ ...pc, token }, ...args));
+    if (patch) {
+      state = store.updatePc(state, pc.key, patch);
+      persist();
+    }
+    return result;
+  };
+}
+const pcApi = {
+  status: authed(api.status), setMe: authed(api.setMe), devices: authed(api.devices),
+  removeDevice: authed(api.removeDevice), testPush: authed(api.testPush),
+};
+
 async function fetchPc(pc) {
   const prev = live.get(pc.key) || {};
   try {
-    const raw = await api.status(pc);
+    const raw = await pcApi.status(pc);
     const now = Date.now();
     const status = normalizeStatus(raw);
     live.set(pc.key, { status, fetchedAt: now, okAt: now, error: "", fresh: true });
@@ -487,22 +507,22 @@ async function fetchPc(pc) {
       state = store.updatePc(state, pc.key, patch);
       persist();
     }
-    if (!pc.rotatedAt || now - pc.rotatedAt > ROTATE_MS) rotateToken(pc);
+    const cur = state.pcs.find((p) => p.key === pc.key);
+    if (cur && tokens.shouldRotate(cur, now)) rotateToken(cur);
   } catch (e) {
     live.set(pc.key, { ...prev, error: e.kind || "http" });
   }
 }
 
+// Asked with the token that just worked. A lost answer leaves the old token in use; it is asked again later.
 async function rotateToken(pc) {
+  const now = Date.now();
+  state = store.updatePc(state, pc.key, { rotateTriedAt: now });
   try {
     const r = await api.rotate(pc);
-    if (r && typeof r.token === "string" && r.token) {
-      state = store.updatePc(state, pc.key, { token: r.token, rotatedAt: Date.now() });
-    } else {
-      state = store.updatePc(state, pc.key, { rotatedAt: Date.now() });
-    }
+    state = store.updatePc(state, pc.key, tokens.afterRotate(pc, r, Date.now()));
   } catch (e) {
-    if (e.kind === "http" && e.status === 404) state = store.updatePc(state, pc.key, { rotatedAt: Date.now() });
+    if (e.kind === "http" && e.status === 404) state = store.updatePc(state, pc.key, tokens.afterRotate(pc, null, Date.now()));
   }
   persist();
 }
@@ -610,17 +630,20 @@ function needsResync() {
   return state.pcs.some((p) => p.vapid && push.keysEqual(p.vapid, key) && p.pushEndpoint !== knownEndpoint);
 }
 
-// Keeps alerts on (see push.keepAlertsOn) and shows the result. One at a time; `again` waits for one already going
-// and then runs once more (a new pairing or a tap must not be answered by a run that started before it).
-function syncAlerts(again = false) {
-  if (syncing && again) return syncing.then(() => syncAlerts(true));
+// Keeps alerts on (see push.keepAlertsOn) and shows the result. One at a time. Options: `again` waits for one
+// already going and then runs once more (a new pairing or a tap must not be answered by a run that started before
+// it); `check` also asks each PC whether it still has the subscription (on open); `fromTap` shows a failure (a quiet
+// run that couldn't subscribe just leaves the Turn on alerts button).
+function syncAlerts({ again = false, check = false, fromTap = false } = {}) {
+  if (syncing && again) return syncing.then(() => syncAlerts({ again: true, check, fromTap }));
   if (!syncing) {
     syncing = (async () => {
       const reg = supported === "ok" ? await registration() : null;
-      const r = await push.keepAlertsOn({ permission: permission(), reg, pcs: state.pcs, setMe: api.setMe });
+      const r = await push.keepAlertsOn({ permission: permission(), reg, pcs: state.pcs, setMe: pcApi.setMe,
+        devices: check ? pcApi.devices : null });
       for (const [key, patch] of r.patches) state = store.updatePc(state, key, patch);
       if (r.patches.length) persist();
-      alertError = r.error;
+      alertError = fromTap || !r.error ? r.error : alertError;
       lastSync = Date.now();
       await refreshAlerts(reg, r.sub);
       return r;
@@ -646,15 +669,15 @@ async function refreshAlerts(reg = swReg, sub) {
   renderAlertSettings();
 }
 
-// The tap on any "Turn on alerts" button: asks straight away (inside the tap), then subscribes and tells every PC.
+// The tap on any "Turn on alerts" button: asks and subscribes straight away (inside the tap), then tells every PC.
 function turnOnAlerts(btn) {
-  const asked = push.askPermission(window.Notification);
+  const { asked, subscribed } = push.startInTap({ N: window.Notification, reg: swReg, key: push.alertKey(state.pcs) });
   if (btn) {
     btn.disabled = true;
     btn.dataset.text = btn.textContent;
     btn.textContent = "Turning on…";
   }
-  return asked.then(() => syncAlerts(true)).finally(() => {
+  return Promise.all([asked, subscribed]).then(() => syncAlerts({ again: true, fromTap: true })).finally(() => {
     if (btn && btn.isConnected) {
       btn.disabled = false;
       btn.textContent = btn.dataset.text;
@@ -812,10 +835,14 @@ function confirmPair(p) {
 }
 
 function pairTap(p, fromTyped) {
-  // The tap itself asks for alerts: browsers only ask inside a tap, and the pairing's network call comes first.
-  const asked = supported === "ok" ? push.askPermission(window.Notification) : Promise.resolve(permission());
+  // The tap itself asks for alerts and, when the shared key is known from a PC paired before, subscribes: iOS does
+  // both only inside a tap, and the pairing's network call comes first. The new PC gets the subscription after.
+  const key = push.alertKey(state.pcs);
+  const start = supported === "ok" ? push.startInTap({ N: window.Notification, reg: swReg, key })
+    : { asked: Promise.resolve(permission()), subscribed: Promise.resolve(null) };
+  start.inTap = supported === "ok" && !!swReg && !!key;
   typedFrom = fromTyped;
-  doPair(p, asked);
+  doPair(p, start);
 }
 
 function pairBusy(on) {
@@ -826,7 +853,7 @@ function pairBusy(on) {
   }
 }
 
-async function doPair(p, asked) {
+async function doPair(p, start) {
   message("");
   pairBusy(true);
   try {
@@ -850,8 +877,8 @@ async function doPair(p, asked) {
     $("done-btn").focus();
     if (!pollTimer) startPolling();
     else refresh();
-    await asked;
-    if (supported === "ok") await syncAlerts(true);
+    await Promise.all([start.asked, start.subscribed]);
+    if (supported === "ok") await syncAlerts({ again: true, fromTap: start.inTap });
     else await refreshAlerts();
     const out = [];
     if (alertsNow === "on") out.push(el("p", "msg ok", otherKey
@@ -977,7 +1004,7 @@ async function toggleDevices(pc, row, btn) {
   box.append(el("p", "muted", "Loading…"));
   row.after(box);
   try {
-    const r = await api.devices(pc);
+    const r = await pcApi.devices(pc);
     box.replaceChildren();
     for (const d of Array.isArray(r.devices) ? r.devices : []) {
       const line = el("div", "row");
@@ -989,7 +1016,7 @@ async function toggleDevices(pc, row, btn) {
         line.append(button("Remove", "btn small danger", async () => {
           if (!confirm(`Remove ${name} from ${pcName(pc)}? It stops getting status and alerts from this PC.`)) return;
           try {
-            await api.removeDevice(pc, String(d.id));
+            await pcApi.removeDevice(pc, String(d.id));
             line.remove();
           } catch {
             alert(`Couldn't remove ${name}. Check that ${pcName(pc)} is reachable.`);
@@ -1009,7 +1036,7 @@ async function removePc(pc) {
   if (!confirm(`Remove ${name} (${APP_NAMES[pc.app]})? This device stops showing it and getting its alerts.`)) return;
   let told = true;
   try {
-    await api.removeDevice(pc, "me");
+    await pcApi.removeDevice(pc, "me");
   } catch (e) {
     told = e.kind === "token";
   }
@@ -1041,7 +1068,7 @@ function setupSettings() {
     const ready = state.pcs.filter((p) => p.pushEndpoint && p.pushEndpoint === knownEndpoint);
     const pc = ready.find((p) => !live.get(p.key)?.error) || ready[0] || state.pcs[0];
     try {
-      await api.testPush(pc);
+      await pcApi.testPush(pc);
       b.textContent = "Sent";
     } catch {
       b.textContent = "Failed";
@@ -1059,7 +1086,7 @@ function setupSettings() {
     }
     state = { ...state, deviceName: name };
     persist();
-    await Promise.all(state.pcs.map((pc) => api.setMe(pc, { name }).catch(() => {})));
+    await Promise.all(state.pcs.map((pc) => pcApi.setMe(pc, { name }).catch(() => {})));
   });
   for (const b of document.querySelectorAll("[data-theme-pick]")) {
     b.addEventListener("click", () => {
@@ -1116,8 +1143,9 @@ async function setupWorker() {
 function onOpen() {
   if (state.pcs.length) startPolling();
   swReg?.update().catch(() => {});
-  // Every open: permission may have changed in Settings, or the subscription may have gone or moved.
-  syncAlerts();
+  // Every open: permission may have changed in Settings, the subscription may have gone or moved, or a PC may have
+  // dropped it. Subscribing here happens only where permission is already granted.
+  syncAlerts({ check: true });
 }
 
 function init() {

@@ -252,8 +252,7 @@ svg { display: block; }
 .row-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-input { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 var(--pad); }
 .row-input input { flex: 1; min-width: 0; border: 0; background: transparent; text-align: right; font-size: 17px; padding: 12px 0; color: var(--text); }
-.row-input input:focus { outline: none; }
-.row-input:focus-within { box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius); }
+.row-input input:focus { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 .row-actions { display: flex; gap: 8px; flex: none; }
 .pc-list-head { justify-content: flex-start; gap: 10px; min-height: 52px; }
 .pc-list-head .row-name { font-size: 17px; font-weight: 700; }

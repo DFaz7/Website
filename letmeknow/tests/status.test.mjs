@@ -177,8 +177,8 @@ test("app and service worker carry the same version, and the worker caches every
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
   const v = (s) => /VERSION = "([^"]+)"/.exec(s)[1];
   assert.equal(v(app), v(sw));
-  for (const f of ["lib/api.mjs", "lib/push.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs", "app.js", "app.css", "theme.js",
-    "index.html"]) {
+  for (const f of ["lib/api.mjs", "lib/patch.mjs", "lib/push.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs",
+    "lib/tokens.mjs", "app.js", "app.css", "theme.js", "index.html"]) {
     assert.ok(sw.includes(`"${f}"`), `${f} in the shell list`);
   }
 });
