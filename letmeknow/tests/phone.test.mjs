@@ -173,3 +173,16 @@ test("no focus ring is switched off: every field and button shows where the focu
   assert.doesNotMatch(css, /outline:\s*(none|0)\b/);
   assert.match(css, /\.row-input input:focus \{ outline: 3px solid var\(--accent\)/);
 });
+
+test("every screen is a history entry, back keeps the list's place, and the slide respects reduced motion", async () => {
+  const { readFileSync } = await import("node:fs");
+  const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
+  for (const id of ["detail", "settings", "add"]) assert.ok(app.includes(`remember("${id}")`), id);
+  assert.match(app, /history\.scrollRestoration = "manual"/);
+  assert.match(app, /scrollTo\(0, id === "home" \? homeScroll : 0\)/);
+  for (const sel of ["[data-close]", "done-btn", "detail-back"]) assert.ok(app.includes(sel), sel);
+  assert.doesNotMatch(app, /addEventListener\("click", closeSheet\)/); // closing goes back through history
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.view\.enter, \.view\.enter-back \{ animation: none; \}/);
+  assert.match(css, /overflow-x: clip/);
+});

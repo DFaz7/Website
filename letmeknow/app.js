@@ -27,6 +27,7 @@ let swReady = null; // resolves to the registration (or null) once the worker is
 let updating = false;
 let lastRefresh = 0; // when every PC was last asked
 let rowsById = new Map(); // task row id -> row, for the countdowns between refreshes
+let otherKeys = new Set(); // PCs whose alert key isn't this device's (their alerts can't reach it)
 let lastNeeds = 0;
 
 // Alerts
@@ -200,8 +201,12 @@ function appSection(g, a, now) {
   line.append(appBadge(a.app));
   const problem = a.state === "offline" || a.state === "error" || a.state === "token";
   if (!a.rows.length || problem) line.append(el("span", problem ? "app-note warn" : "app-note", appNote(a, g.name, now)));
-  if (a.state === "token") line.append(button("Pair again", "btn small ghost", openAdd));
   sec.append(line);
+  // What to do about it, in a line under the app.
+  if (a.state === "offline") sec.append(el("p", "app-hint", `Check that Tailscale is on, here and on ${g.name}, and that ${APP_NAMES[a.app] || "the app"} is open there.`));
+  if (a.state === "token") sec.append(el("p", "app-hint", `On ${g.name}, open ${APP_NAMES[a.app] || "the app"}'s Settings, Pair a phone, then tap Pair again here.`));
+  if (otherKeys.has(a.key)) sec.append(el("p", "app-hint warn", `Its alerts can't reach this device: ${g.name} uses a different alert key from your other PCs.`));
+  if (a.state === "token") sec.append(button("Pair again", "btn small ghost fit", openAdd));
   for (const r of a.rows) {
     rowsById.set(r.id, r);
     sec.append(taskRow(r));
@@ -278,6 +283,7 @@ function renderList() {
     tick();
     return;
   }
+  otherKeys = new Set(push.otherKeyPcs(state.pcs).map((p) => p.key));
   const nodes = buildGroups(entries(), now).map((g) => pcCard(g, now));
   nodes.push(button("Add a PC", "btn ghost wide add-more", openAdd));
   list.replaceChildren(...nodes);
@@ -489,17 +495,13 @@ function renderDetail() {
 }
 
 function openDetail(key, taskId, view = "task") {
-  if (!detailOf) homeScroll = scrollY;
   detailOf = { key, taskId, view };
-  $("detail-title").textContent = view === "quefix" ? "QueFix" : "Details";
+  const pc = state.pcs.find((p) => p.key === key);
+  $("detail-title").textContent = pc ? pcName(pc) : view === "quefix" ? "QueFix" : "Details"; // which PC, always
   renderDetail();
   show("detail");
-  try {
-    history.pushState({ lmk: "detail" }, "");
-  } catch {
-    // no history here: the Back button still works
-  }
-  $("detail-back").focus();
+  remember("detail");
+  $("detail-back").focus({ preventScroll: true });
 }
 
 function closeDetail() {
@@ -507,21 +509,45 @@ function closeDetail() {
   const id = `${detailOf.key}/${detailOf.taskId}`;
   const qf = detailOf.view === "quefix" ? detailOf.key : "";
   detailOf = null;
-  show("home");
-  scrollTo(0, homeScroll);
+  show("home", true);
   const row = [...document.querySelectorAll("#list [data-row], #list [data-qf]")]
     .find((n) => (qf ? n.dataset.qf === qf : n.dataset.row === id));
   if (row) row.focus({ preventScroll: true });
 }
 
+// Every screen but home is a history entry, so the phone's back gesture or button goes back a screen instead of
+// leaving the app, and each Back/Cancel/Done goes back through history too.
+function remember(id) {
+  try {
+    if (history.state && history.state.lmk === id) history.replaceState({ lmk: id }, "");
+    else history.pushState({ lmk: id }, "");
+  } catch {
+    // no history here: the on-screen buttons still work
+  }
+}
+
+function goBack() {
+  if (history.state && history.state.lmk) history.back(); // the screen closes through popstate
+  else toHome();
+}
+
+function toHome() {
+  if (detailOf) closeDetail();
+  else if ($("home").hidden) closeSheet();
+}
+
 function setupDetail() {
-  $("detail-back").addEventListener("click", () => {
-    if (history.state && history.state.lmk === "detail") history.back(); // closes through popstate
-    else closeDetail();
+  $("detail-back").addEventListener("click", goBack);
+  addEventListener("popstate", (e) => {
+    const to = e.state && e.state.lmk;
+    if (to === "settings" && $("settings").hidden) {
+      detailOf = null;
+      stopScan();
+      openSettings(false, true);
+    } else if (!to) toHome();
   });
-  addEventListener("popstate", () => closeDetail());
   addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && detailOf) $("detail-back").click();
+    if (e.key === "Escape" && $("home").hidden) goBack();
   });
 }
 
@@ -707,14 +733,24 @@ function setupPull() {
 
 // ---------- Views ----------
 
-function show(id) {
+// Shows one screen with a short slide (from the right going in, from the left coming back). The list's scroll
+// position is kept while away and put back on return.
+function show(id, back = false) {
+  const cur = [...document.querySelectorAll(".view")].find((v) => !v.hidden);
+  if (cur && cur.id === "home" && id !== "home") homeScroll = scrollY;
   for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== id;
-  scrollTo(0, 0);
+  const v = $(id);
+  if (cur && cur !== v) {
+    v.classList.remove("enter", "enter-back");
+    void v.offsetWidth; // restart the animation
+    v.classList.add(back ? "enter-back" : "enter");
+  }
+  scrollTo(0, id === "home" ? homeScroll : 0);
   if (id !== "add") stopScan();
 }
 
 function closeSheet() {
-  show("home");
+  show("home", true);
   render();
 }
 
@@ -898,6 +934,7 @@ function addStep(name) {
 async function openAdd() {
   if (detailOf) detailOf = null;
   show("add");
+  remember("add");
   message("");
   $("add-tip").hidden = supported !== "install";
   addStep("scan-step");
@@ -949,6 +986,8 @@ function confirmPair(p) {
   line.append(appBadge(p.app || (/:8443$/.test(p.url) ? "tabgod" : "smu")), el("span", "detail-device", p.name || "This PC"));
   who.replaceChildren(line, el("span", "sub", p.url.replace(/^https?:\/\//, "")));
   message("");
+  $("confirm-btn").dataset.label = p.name ? `Pair with ${p.name}` : "Pair";
+  $("confirm-btn").textContent = $("confirm-btn").dataset.label;
   addStep("confirm-step");
   $("confirm-btn").focus();
 }
@@ -968,7 +1007,7 @@ function pairBusy(on) {
   for (const id of ["pair-btn", "confirm-btn"]) {
     const b = $(id);
     b.disabled = on;
-    b.textContent = on ? "Pairing…" : "Pair";
+    b.textContent = on ? "Pairing…" : b.dataset.label || "Pair";
   }
 }
 
@@ -1012,12 +1051,19 @@ async function doPair(p, start) {
     pairBusy(false);
     const text = {
       offline: "Can't reach that PC. Check the address, and that Tailscale is on here and on the PC.",
-      code: "That code didn't work. It may have been used or be out of date: make a new one on the PC.",
+      code: "That code didn't work: it was used already, or it's over 10 minutes old. On the PC, open Pair a phone again for a new one.",
       slow: "Too many tries. Wait a minute, then try again.",
       full: "That PC already has 10 devices. Remove one in its Settings first.",
     }[e.kind] || "Pairing didn't work. Make a new code on the PC and try again.";
-    if (typedFrom || !scanned) showTyped();
-    else addStep("confirm-step");
+    if (typedFrom || !scanned) {
+      showTyped();
+      // A code problem: straight back to the code, ready to type a new one.
+      const f = e.kind === "code" ? $("f-code") : e.kind === "offline" ? $("f-address") : null;
+      if (f) {
+        f.focus({ preventScroll: true });
+        f.select();
+      }
+    } else addStep("confirm-step");
     message(text);
   }
 }
@@ -1039,7 +1085,7 @@ function setupAdd() {
   });
   $("confirm-btn").addEventListener("click", () => scanned && pairTap(scanned, false));
   $("rescan-btn").addEventListener("click", () => openAdd());
-  $("done-btn").addEventListener("click", closeSheet);
+  $("done-btn").addEventListener("click", goBack);
   $("f-code").addEventListener("input", (e) => {
     // XXXX-XXXX as it's typed
     const raw = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 8);
@@ -1168,17 +1214,18 @@ async function removePc(pc) {
   if (!told) alert(`${name} couldn't be reached. Also remove ${state.deviceName} in ${APP_NAMES[pc.app]}'s Settings on that PC.`);
 }
 
-function openSettings() {
+function openSettings(push = true, back = false) {
   $("device-name").value = state.deviceName;
   $("about").textContent = `Let Me Know ${VERSION}`;
   renderPcList();
   refreshAlerts();
   applyTheme();
-  show("settings");
+  show("settings", back);
+  if (push) remember("settings");
 }
 
 function setupSettings() {
-  $("open-settings").addEventListener("click", openSettings);
+  $("open-settings").addEventListener("click", () => openSettings());
   $("open-add").addEventListener("click", openAdd);
   $("push-btn").addEventListener("click", (e) => turnOnAlerts(e.currentTarget));
   $("test-btn").addEventListener("click", async () => {
@@ -1269,11 +1316,19 @@ function onOpen() {
 
 function init() {
   persist();
+  // A reload starts on the list: forget a screen the page was on before it. The app puts the list's scroll back
+  // itself (show), so the browser's own restoring on back must not undo it.
+  try {
+    history.scrollRestoration = "manual";
+    if (history.state && history.state.lmk) history.replaceState(null, "", location.pathname + location.search);
+  } catch {
+    // no history here
+  }
   applyTheme();
   setupAdd();
   setupSettings();
   setupPull();
-  for (const b of document.querySelectorAll("[data-close]")) b.addEventListener("click", closeSheet);
+  for (const b of document.querySelectorAll("[data-close]")) b.addEventListener("click", goBack);
   setupDetail();
   document.addEventListener("click", (e) => {
     if (e.target.closest("#settings [data-add]")) openAdd();

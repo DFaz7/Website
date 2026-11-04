@@ -73,6 +73,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: contain;
+  overflow-x: clip; /* the screen slide never makes the page scroll sideways */
 }
 [hidden] { display: none !important; }
 button, input { font: inherit; color: inherit; }
@@ -87,6 +88,12 @@ svg { display: block; }
   padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + var(--pad))
            calc(env(safe-area-inset-bottom) + 28px) calc(env(safe-area-inset-left) + var(--pad));
 }
+
+/* Moving between screens: a short slide and fade, from the right going in, from the left coming back */
+.view.enter { animation: view-in .22s cubic-bezier(.2, .7, .3, 1) both; }
+.view.enter-back { animation: view-back .22s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes view-in { from { opacity: 0; transform: translateX(28px); } }
+@keyframes view-back { from { opacity: 0; transform: translateX(-28px); } }
 
 /* Header */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; margin-bottom: var(--gap); }
@@ -131,6 +138,8 @@ svg { display: block; }
 .app-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 28px; }
 .app-note { flex: 1 1 150px; min-width: 0; font-size: 14px; color: var(--muted); line-height: 1.35; }
 .app-note.warn { color: var(--amber); font-weight: 500; }
+.app-hint { margin: -4px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.app-hint.warn { color: var(--amber); }
 
 /* A task on a PC: name and time left, progress, counts and finish time, and what it needs */
 .task {
@@ -277,6 +286,7 @@ svg { display: block; }
 .btn.danger { background: var(--red-soft); color: var(--red); }
 .btn.light { background: rgba(255, 255, 255, .2); color: #fff; }
 .btn.wide { width: 100%; }
+.btn.fit { justify-self: start; }
 .btn:disabled { opacity: .55; }
 .link { border: 0; background: none; color: var(--accent); font-size: 17px; min-height: 44px; padding: 0 4px; }
 .link.strong { font-weight: 650; }
@@ -423,6 +433,7 @@ svg { display: block; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .view.enter, .view.enter-back { animation: none; }
   .pull, .bar-done, .bar-failed, .pc, .btn, .task { transition: none; }
   .pill.on::before { animation: none; }
 }
