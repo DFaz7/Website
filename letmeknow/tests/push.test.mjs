@@ -437,3 +437,37 @@ test("not granted: the open-time check doesn't subscribe or ask the PCs", async 
   assert.equal(asked, 0);
   assert.deepEqual(calls, []);
 });
+
+test("worker: a QueFix alert shows as sent and its tap opens the QueFix list on that PC", async () => {
+  const w = loadWorker();
+  const qf = { v: 1, app: "tabgod", kind: "needs_you", pc: "a1b2c3d4e5f60718", pc_name: "ZBook", task: "quefix",
+    task_name: "QueFix", title: "ZBook needs you", body: "QueFix: 7 should be before 3", at: base.at };
+  await w.fire("push", pushEvent(qf));
+  const [n] = w.shown;
+  assert.equal(n.options.body, "QueFix: 7 should be before 3");
+  assert.equal(n.options.tag, "tabgod-a1b2c3d4e5f60718-quefix");
+  await w.fire("notificationclick", { notification: { close() {}, data: n.options.data } });
+  assert.deepEqual(w.opened, ["https://dmftrading.co.uk/letmeknow/?pc=a1b2c3d4e5f60718&app=tabgod&task=quefix"]);
+});
+
+test("worker: a queue alert reads cleanly on the lock screen, keeps its own place and opens the QueFix list", async () => {
+  const w = loadWorker();
+  const one = { v: 1, app: "tabgod", kind: "queue", pc: "a1b2c3d4e5f60718", pc_name: "Mini 1",
+    title: "Profile 10 is near the front", body: "Queue 842 · QueFix on Mini 1", at: base.at };
+  await w.fire("push", pushEvent(one));
+  await w.fire("push", pushEvent({ ...one, title: "3 profiles near the front", body: "10: 842 · 7: 93% · 3: 990" }));
+  await w.fire("push", pushEvent({ v: 1, kind: "queue", pc: "a1b2c3d4e5f60718", pc_name: "Mini 1" }));
+  const [a, b, c] = w.shown;
+  assert.deepEqual([a.title, a.options.body], ["Profile 10 is near the front", "Queue 842 · QueFix on Mini 1"]);
+  assert.deepEqual([b.title, b.options.body], ["3 profiles near the front", "10: 842 · 7: 93% · 3: 990"]);
+  assert.deepEqual([c.title, c.options.body], ["A profile is near the front", "QueFix on Mini 1"]);
+  for (const n of [a, b, c]) {
+    assert.equal(n.options.tag, "tabgod-a1b2c3d4e5f60718-qf-near"); // apart from a QueFix needs-you alert
+    assert.equal(n.options.icon, "icons/icon-192.png");
+    assert.equal(n.options.badge, "icons/badge-96.png");
+    assert.equal(n.options.renotify, true);
+    assert.ok(!/needs you/i.test(n.title));
+  }
+  await w.fire("notificationclick", { notification: { close() {}, data: c.options.data } });
+  assert.deepEqual(w.opened, ["https://dmftrading.co.uk/letmeknow/?pc=a1b2c3d4e5f60718&app=tabgod&task=quefix"]);
+});

@@ -20,6 +20,7 @@ const SHELL = [
   "manifest.webmanifest",
   "icons/icon.svg",
   "icons/icon-192.png",
+  "icons/badge-96.png",
   "icons/apple-touch-icon.png",
 ];
 
@@ -108,6 +109,8 @@ function words(p) {
       return [`Test alert from ${pc}`, "Alerts work on this device."];
     case "needs_you":
       return [`${pc} needs you`, on("open Let Me Know to see why")];
+    case "queue": // TabGod's QueFix: profiles that just got near the front of their queue
+      return ["A profile is near the front", `QueFix on ${pc}`];
     default: // a kind this version doesn't know, or an unreadable push: say nothing it can't know
       return [p.pc_name ? `News from ${pc}` : "Let Me Know", on("open Let Me Know to see what's new")];
   }
@@ -116,16 +119,18 @@ function words(p) {
 // What a push shows: { title, options }. Kept apart from the event so tests can check it.
 function notice(p) {
   const [t, b] = words(p);
-  const app = APP[p.app] ? p.app : "";
+  const app = APP[p.app] ? p.app : p.kind === "queue" ? "tabgod" : "";
   const pc = typeof p.pc === "string" && /^[0-9A-Za-z_-]{1,64}$/.test(p.pc) ? p.pc : "";
-  const task = typeof p.task === "string" ? p.task.slice(0, 64) : "";
+  // A queue alert always opens the QueFix list, and keeps its own place on the lock screen (one per PC).
+  const task = p.kind === "queue" ? "quefix" : typeof p.task === "string" ? p.task.slice(0, 64) : "";
+  const tagTask = p.kind === "queue" ? "qf-near" : task;
   const at = Date.parse(p.at);
   const options = {
     body: cut(p.body, 200) || b,
-    tag: `${app || "app"}-${pc || "pc"}-${task || p.kind || "task"}`,
+    tag: `${app || "app"}-${pc || "pc"}-${tagTask || p.kind || "task"}`,
     renotify: true,
     icon: "icons/icon-192.png",
-    badge: "icons/icon-192.png",
+    badge: "icons/badge-96.png", // one colour: Android draws only its shape in the status bar
     data: { app, pc, task, kind: typeof p.kind === "string" ? p.kind : "" },
   };
   if (Number.isFinite(at)) options.timestamp = at;
