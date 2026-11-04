@@ -66,8 +66,9 @@ def norm_code(text: str) -> str:
 
 class FakePC:
     def __init__(self, name: str, app: str, port: int, tasks: list[dict], busy: bool, down: bool = False,
-                 revoked: bool = False):
+                 revoked: bool = False, quefix: str = ""):
         self.name, self.app, self.port, self.busy = name, app, port, busy
+        self.quefix = quefix  # TabGod only: "live" (out of order), "scan" (in order, a manual scan) or "" (none)
         self.down = down  # pairs, then never answers /v1/status: the phone shows "Can't reach"
         self.revoked = revoked  # pairs, then refuses the token: the phone shows "Not paired"
         self.id = hashlib.sha256(name.encode()).hexdigest()[:16]  # one id per PC, shared by SMU and TabGod
@@ -114,9 +115,30 @@ class FakePC:
             if t.get("detail"):
                 out[-1]["detail"] = self.detail(t["detail"])
             self.maybe_push(t["id"], t["name"], bool(why), why)
-        return {"app": self.app, "protocol": 1,
-                "device": {"name": self.name, "id": self.id, "active": any(x["running"] for x in out)},
-                "tasks": out}
+        st = {"app": self.app, "protocol": 1,
+              "device": {"name": self.name, "id": self.id, "active": any(x["running"] for x in out)},
+              "tasks": out}
+        if self.app == "tabgod" and self.quefix:
+            st["quefix"] = self.quefix_view()
+        return st
+
+    def quefix_view(self) -> dict:
+        """TabGod's QueFix (PROTOCOL.md): 24 windows on 3 desktops by queue position; "live" has two out of order and
+        two near the front, "scan" one near the front."""
+        live = self.quefix == "live"
+        names = ["Milo (10)", "3", "Ava (7)", "", "12", "Jo (5)"]
+        rows = []
+        for i in range(24):
+            name = names[i] if i < len(names) else str(20 + i)
+            bar = i >= 20
+            pct, queue = 60 + (i - 20) * 11, (842 if live else 1204) + i * 311
+            near = pct > 90 if bar else queue < 1000  # near the front: above 90 % or under 1,000 in the queue
+            rows.append({"rank": i + 1, "name": name, "position": f"{pct}%" if bar else f"{queue:,}", "bar": bar,
+                         "sure": i not in (4, 9), "near": near, "desktop": None if i == 7 else 1 + i % 3})
+        return {"live": live, "scanned_at": now_iso(time.time() - (3 if live else 95)), "windows": 24, "desktops": 3,
+                "near_count": sum(r["near"] for r in rows), "in_order": not live, "out_of_order_count": 2 if live else 0,
+                "out_of_order": [{"first": "7", "then": "3"}, {"first": "12", "then": "Jo (5)"}] if live else [],
+                "rows": rows}
 
     def detail(self, d: dict) -> dict:
         """A task's detail (PROTOCOL.md), with "since" and each problem's time given as seconds before start."""
@@ -323,14 +345,14 @@ def fake_pcs() -> list[FakePC]:
         FakePC("ZBook", "tabgod", 8792, [
             {"id": "g1", "name": "Profiles batch A", "done": 7, "failed": 0, "left": 6, "run": True, "per": 45,
              "gap": 10},
-        ], busy=True),
+        ], busy=True, quefix="live"),
         FakePC("Mini 1", "smu", 8793, [
             {"id": "m1", "name": "Club members", "done": 3, "failed": 0, "left": 70, "run": True, "per": 120,
              "gap": 25, "detail": {"recent": [{"ago": 1500, "reason": "The page didn't load in time"}]}},
         ], busy=True),
         FakePC("Mini 1", "tabgod", 8794, [
             {"id": "g2", "name": "Profiles batch B", "done": 20, "failed": 1, "left": 12, "per": 240, "gap": 30},
-        ], busy=False),
+        ], busy=False, quefix="scan"),
         FakePC("Mini 2", "smu", 8795, [
             {"id": "n1", "name": "Book club", "done": 0, "failed": 0, "left": 25, "run": True, "per": None},
         ], busy=True),
