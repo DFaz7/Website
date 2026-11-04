@@ -76,11 +76,88 @@ export function normalizeStatus(raw) {
         etaAt: when(t.eta_at),
       };
     });
+  const app = APPS.includes(r.app) ? r.app : null;
   return {
-    app: APPS.includes(r.app) ? r.app : null,
+    app,
     device: { name: str(d.name, 40), id: str(d.id, 64), active: d.active === true },
     tasks,
+    quefix: app === "tabgod" ? normalizeQuefix(r.quefix) : null,
   };
+}
+
+// ---------- QueFix (TabGod's window order, PROTOCOL.md) ----------
+
+// TabGod's optional `quefix`: null when missing or unusable. Rows by rank, at most 100; names masked again here and
+// "Window <rank>" when blank; at most 5 out-of-order pairs.
+export function normalizeQuefix(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const rows = (Array.isArray(raw.rows) ? raw.rows : [])
+    .filter((x) => x && typeof x === "object")
+    .map((x, i) => {
+      const rank = count(x.rank) || i + 1;
+      return {
+        rank,
+        name: text(x.name, 80) || `Window ${rank}`,
+        position: text(x.position, 16),
+        bar: x.bar === true,
+        sure: x.sure !== false,
+        near: x.near === true,
+        desktop: count(x.desktop),
+      };
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 100);
+  const pairs = (Array.isArray(raw.out_of_order) ? raw.out_of_order : [])
+    .filter((x) => x && typeof x === "object")
+    .map((x) => ({ first: text(String(x.first ?? ""), 80), then: text(String(x.then ?? ""), 80) }))
+    .filter((x) => x.first && x.then)
+    .slice(0, 5);
+  const outCount = count(raw.out_of_order_count);
+  const out = outCount ?? pairs.length;
+  return {
+    live: raw.live === true,
+    scannedAt: when(raw.scanned_at),
+    windows: count(raw.windows) ?? rows.length,
+    desktops: count(raw.desktops),
+    inOrder: raw.in_order === true || (raw.in_order == null && out === 0),
+    outOfOrderCount: out,
+    outOfOrder: pairs,
+    nearCount: count(raw.near_count) ?? rows.filter((r) => r.near).length,
+    rows,
+  };
+}
+
+// "QueFix live · 24 windows · all in order", "QueFix · 24 windows · 2 out of order" (a manual scan),
+// "QueFix live · 24 windows · 2 near front" (profiles above 90% or under 1,000 in the queue), or both.
+export function quefixLine(q) {
+  const n = q.windows;
+  const parts = [`QueFix${q.live ? " live" : ""}`, `${n} ${n === 1 ? "window" : "windows"}`];
+  if (q.nearCount) parts.push(`${q.nearCount} near front`);
+  if (!q.inOrder) parts.push(`${q.outOfOrderCount || q.outOfOrder.length || "some"} out of order`);
+  else if (!q.nearCount) parts.push("all in order");
+  return parts.join(" · ");
+}
+
+// The profile number in a QueFix name: "Milo (10)" -> "10", "10" -> "10"; "" when there isn't one.
+export function profileNumber(name) {
+  const m = /^\s*(\d+)\s*$/.exec(name) || /\((\d+)\)\s*$/.exec(name);
+  return m ? m[1] : "";
+}
+
+// Whether a QueFix row is in one of the out-of-order pairs (matched by profile number or by name).
+export function outOfOrderRow(q, row) {
+  const n = profileNumber(row.name);
+  return q.outOfOrder.some((p) => [p.first, p.then].some((x) => x === row.name || (n && (x === n || profileNumber(x) === n))));
+}
+
+// "7 should be before 3".
+export function pairText(p) {
+  return `${p.first} should be before ${p.then}`;
+}
+
+// "scanned 12 s ago", "scanned just now"; "" when the PC didn't say.
+export function scannedText(q, now) {
+  return q.scannedAt == null ? "" : `scanned ${agoText(now - q.scannedAt)}`;
 }
 
 // Tasks in the order they are shown: needs you, running, with people left, then finished ones.
@@ -176,7 +253,8 @@ export function buildGroups(entries, now) {
     });
     rows.sort((a, b) => a.rank - b.rank || (a.rank === 1 ? a.secs - b.secs : 0) || byName(a.task.name, b.task.name));
     const left = e.status ? tasks.reduce((n, t) => n + (t.left || 0), 0) : null;
-    g.apps.push({ key: e.key, app: e.app, state, rows, left, okAt: e.okAt || 0, fresh: e.fresh !== false });
+    g.apps.push({ key: e.key, app: e.app, state, rows, left, okAt: e.okAt || 0, fresh: e.fresh !== false,
+      quefix: (e.status && e.status.quefix) || null });
   }
   const out = [];
   for (const g of groups.values()) {
