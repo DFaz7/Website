@@ -10,6 +10,7 @@ const SHELL = [
   "app.js",
   "theme.js",
   "lib/api.mjs",
+  "lib/nav.mjs",
   "lib/patch.mjs",
   "lib/push.mjs",
   "lib/scan.mjs",

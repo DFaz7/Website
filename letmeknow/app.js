@@ -1,5 +1,6 @@
 // Let Me Know: the status of SMU and TabGod on each paired PC, and alerts when one needs you.
 import * as api from "./lib/api.mjs";
+import * as nav from "./lib/nav.mjs";
 import * as push from "./lib/push.mjs";
 import * as store from "./lib/store.mjs";
 import * as tokens from "./lib/tokens.mjs";
@@ -494,13 +495,13 @@ function renderDetail() {
   patchChildren(body, nodes);
 }
 
-function openDetail(key, taskId, view = "task") {
+function openDetail(key, taskId, view = "task", push = true, back = false) {
   detailOf = { key, taskId, view };
   const pc = state.pcs.find((p) => p.key === key);
   $("detail-title").textContent = pc ? pcName(pc) : view === "quefix" ? "QueFix" : "Details"; // which PC, always
   renderDetail();
-  show("detail");
-  remember("detail");
+  show("detail", back);
+  if (push) remember("detail", { key, taskId, view });
   $("detail-back").focus({ preventScroll: true });
 }
 
@@ -517,10 +518,11 @@ function closeDetail() {
 
 // Every screen but home is a history entry, so the phone's back gesture or button goes back a screen instead of
 // leaving the app, and each Back/Cancel/Done goes back through history too.
-function remember(id) {
+function remember(id, args) {
+  const entry = nav.entryFor(id, args);
   try {
-    if (history.state && history.state.lmk === id) history.replaceState({ lmk: id }, "");
-    else history.pushState({ lmk: id }, "");
+    if (nav.sameEntry(history.state, entry)) history.replaceState(entry, "");
+    else history.pushState(entry, "");
   } catch {
     // no history here: the on-screen buttons still work
   }
@@ -538,13 +540,23 @@ function toHome() {
 
 function setupDetail() {
   $("detail-back").addEventListener("click", goBack);
+  // Back (or forward) lands on an entry: show the screen it names, as it was.
   addEventListener("popstate", (e) => {
-    const to = e.state && e.state.lmk;
-    if (to === "settings" && $("settings").hidden) {
+    const to = nav.screenFor(e.state, state.pcs.map((p) => p.key));
+    if (to.screen === "detail") {
+      openDetail(to.key, to.taskId, to.view, false, true);
+    } else if (to.screen === "settings") {
       detailOf = null;
       stopScan();
-      openSettings(false, true);
-    } else if (!to) toHome();
+      if ($("settings").hidden) openSettings(false, true);
+    } else if (to.screen === "add") {
+      detailOf = null;
+      // Back to Add a PC as it was left: the typed form, the found PC or the paired step stay; the camera restarts.
+      if ($("add").hidden) {
+        if (!$("scan-step").hidden) openAdd(false, true);
+        else show("add", true);
+      }
+    } else toHome();
   });
   addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("home").hidden) goBack();
@@ -931,10 +943,11 @@ function addStep(name) {
   document.querySelector("#add [data-close]").textContent = name === "done-step" ? "Close" : "Cancel";
 }
 
-async function openAdd() {
+// push false: back or forward landed here (the entry is there already). Called as a click handler too (an event).
+async function openAdd(push = true, back = false) {
   if (detailOf) detailOf = null;
-  show("add");
-  remember("add");
+  show("add", back === true);
+  if (push !== false) remember("add");
   message("");
   $("add-tip").hidden = supported !== "install";
   addStep("scan-step");

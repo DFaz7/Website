@@ -178,7 +178,7 @@ test("every screen is a history entry, back keeps the list's place, and the slid
   const { readFileSync } = await import("node:fs");
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
-  for (const id of ["detail", "settings", "add"]) assert.ok(app.includes(`remember("${id}")`), id);
+  for (const id of ["detail", "settings", "add"]) assert.ok(app.includes(`remember("${id}"`), id);
   assert.match(app, /history\.scrollRestoration = "manual"/);
   assert.match(app, /scrollTo\(0, id === "home" \? homeScroll : 0\)/);
   for (const sel of ["[data-close]", "done-btn", "detail-back"]) assert.ok(app.includes(sel), sel);
