@@ -693,9 +693,10 @@ function alertStep(st) {
     box.append(steps([
       ["Tap Share ", share, device === "iPad" ? " at the top of Safari." : " at the bottom of Safari."],
       ["Choose ", el("b", null, "Add to Home Screen"), ", then ", el("b", null, "Add"), "."],
-      ["Open Let Me Know from your Home Screen and tap ", el("b", null, "Turn on alerts"), "."],
+      ["Open Let Me Know from your Home Screen, pair your PCs there and tap ", el("b", null, "Allow"),
+        " when it asks about alerts."],
     ]));
-    box.append(el("p", "alert-note", "Alerts only work in the Home Screen app, and it keeps its own list: pair your PCs there."));
+    box.append(el("p", "alert-note", "Alerts only work in the Home Screen app. It keeps its own list of PCs, apart from Safari's."));
     return box;
   }
   if (st === "off") {
@@ -759,8 +760,11 @@ async function openAdd() {
   $("add-tip").hidden = supported !== "install";
   addStep("scan-step");
   $("scan-note").textContent = "Point the camera at the QR code in SMU or TabGod: Settings, Pair a phone.";
+  const run = ++scanRun;
+  // The camera can take a moment to start (or fail): by then the sheet may be closed or on another step.
+  const current = () => run === scanRun && !$("add").hidden && !$("scan-step").hidden;
   try {
-    scanner = await startScan($("scan-video"), (text) => {
+    const s = await startScan($("scan-video"), (text) => {
       const p = parsePairing(text);
       if (!p) {
         $("scan-note").textContent = "That isn't a Let Me Know code. Use the QR code in SMU or TabGod's Settings.";
@@ -769,14 +773,20 @@ async function openAdd() {
       confirmPair(p);
       return true;
     });
+    if (current()) scanner = s;
+    else s.stop();
   } catch (e) {
+    if (!current()) return;
     showTyped(e.message === "camera"
       ? "The camera isn't available. Allow it in Settings, or type the address and code shown under the QR code."
       : "Type the address and code shown under the QR code on the PC.");
   }
 }
 
+let scanRun = 0; // the latest camera start; an older one that finishes late is dropped
+
 function stopScan() {
+  scanRun++;
   if (scanner) scanner.stop();
   scanner = null;
 }
