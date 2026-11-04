@@ -8,19 +8,24 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
 
 - Installable on iPhone/iPad (iOS 16.4+) from Safari: Share -> Add to Home Screen. No App Store. Listed on the
   Downloads page next to the Vault app. Updates itself; nothing to reinstall.
-- One "Active" list of everything running or needing the owner, across all paired PCs and both apps. Each row shows
-  the app (SMU or TabGod badge, each in its own colour), the device name (ZBook, Mini 1, ...), the task name, time
-  left with the finish time (or "learning the form"), done / failed / left, and "Needs you: <reason>" when set.
-  Order: needs you first (by device, then task name); then running by time left, least first; then running without
-  an estimate yet, by task name; ties by device name, then app.
+- One card per PC (ZBook, Mini 1, ...): SMU and TabGod on one PC share its id and name from pairing, so each card
+  is one machine, with its state (Needs you, Running, Can't reach, Not paired, Checking, Idle). Inside, each app
+  (SMU or TabGod badge, each in its own colour) lists its tasks that run or need the owner: task name, time left
+  with the finish time (or "learning the form"), a done / failed / left bar and counts, and when it needs the owner,
+  the reason and what to do. An app with nothing running says so ("Nothing running · 12 left"); one that doesn't
+  answer says "Can't reach ZBook · last known 3 min ago" and keeps its last known tasks, greyed. Cards: needs you
+  first, then running by least time left, then problems, then checking, then idle; ties by name. Two columns on a
+  wide iPad.
 - Tapping a row opens its detail view: "What's wrong" (the full reason, the step and page it's stuck on, how long
   it has waited), "What to do" in plain words (the PC's own sentence, else one for the app and the kind of wait),
   progress (done / failed / left, time left, finish, per person) and the last few problems. Works with today's
   /v1/status and fills in more when a PC sends the optional `detail` (PROTOCOL.md).
-- Below it, a collapsed "Not running" section lists every paired PC/app pair with nothing active: not paired, can't
-  reach, error, connecting, then idle, so nothing silently disappears.
+- Each PC's last answer is kept, so the list shows at once on open (as "Checking…" until the PC answers).
 - Push alerts whenever an app needs the owner (both AIs couldn't do a step, a question, a stuck profile, IWM's own
-  problems via SMU), and when a run finishes or stops.
+  problems via SMU), and when a run finishes or stops or a PC goes quiet mid-run. Alerts turn on as a phone pairs:
+  the pair tap asks for permission. While they are off the home screen shows one full-width step saying exactly what
+  to do (on an iPhone/iPad Safari tab: Share, Add to Home Screen, then open it and tap Turn on alerts), with a big
+  "Turn on alerts" button. Tapping an alert opens the app on that PC and task.
 - PCs are named in their apps' Settings (SMU: "Which device this is"; TabGod gets the same; one name per PC, shared
   by both apps, following the hardware-scan host list IWM uses, with a Mini 1 / Mini 2 choice when the scan matches
   both minis).
@@ -30,7 +35,7 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
   PCs. Only paired devices get alerts. Reached only over the owner's Tailscale network. Only counts, task names
   (owner-chosen labels) and device names leave the PC, never a person's details or passwords.
 - Name "Let Me Know"; icon "alert pulse, classic" (red gradient tile #FF5F5F -> #D3141C, two soft white rings,
-  white disc, red "!"); clean UI, even spacing, no big gaps.
+  white disc, red "!"); clean UI, even spacing, no big gaps. Dark by default; Settings, Look switches to light.
 
 ## Decisions
 
@@ -73,7 +78,7 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
 2. Each PC: Tailscale signed in. The apps run `tailscale serve --bg` themselves once the PC side is built.
 3. iPhone and iPad: Tailscale app, signed in to the same tailnet, VPN on (On Demand is fine).
 4. iPhone/iPad: Safari -> `https://dmftrading.co.uk/letmeknow/` -> Share -> Add to Home Screen; open it from the
-   Home Screen; Settings -> Alerts -> Turn on.
+   Home Screen; pair each PC (the pair tap turns alerts on).
 5. First PC makes the shared alert key; it reaches the other PCs through the Signing Keys folder on OneDrive.
 6. Vendor jsQR once (`letmeknow/vendor/jsqr.js` from npm `jsqr@1.4.0`, the `dist/jsQR.js` file) for the camera
    scanner on iPhone/iPad.

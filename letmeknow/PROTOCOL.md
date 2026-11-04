@@ -154,7 +154,10 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
  "at":"2026-11-01T00:12:31+00:00"}
 ```
   `kind`: `needs_you` | `finished` | `failed` | `stopped` | `test`. `title`/`body` are what the phone shows; the
-  phone falls back to its own words when they are missing.
+  phone falls back to its own words when they are missing. Optional `reason`: `"quiet"` on a `stopped` push sent
+  when a PC went quiet mid-run (it may be off or crashed), e.g. title `ZBook went quiet`, body
+  `Gym list: no word from ZBook since 01:52 (it may be off or crashed)`; other reasons are ignored. Tapping an alert
+  opens the app on `pc` (and `task` when given).
 - When a push fires (per task):
   - `needs_you`: `needs_you` turns true, or its reason changes while true. Body `<task>: <reason>`.
   - `finished`: a run ends with nobody left. Body `<task>: done - <done> done, <failed> failed`.
@@ -176,6 +179,10 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
 
 ## Phone side (for reference)
 
-Stores per PC: `{app, url, pc, name, token, deviceId, vapid}` in `localStorage` (`lmk.v1`). Polls `/v1/status`
-every 10 s while open; `PUT /v1/devices/me` with its subscription after alerts are turned on and whenever the
-subscription's endpoint changes; `DELETE /v1/devices/me` on Remove.
+Stores per PC: `{app, url, pc, name, token, deviceId, vapid, pushEndpoint}` in `localStorage` (`lmk.v1`), and each
+PC's last answer (`lmk.v1.last`). Polls `/v1/status` every 10 s while open. Alerts: the pair tap also asks for
+notification permission; once granted, the phone subscribes with the shared key and sends `PUT /v1/devices/me` with
+its subscription to every paired PC with that key. On every open it re-subscribes silently when the subscription is
+missing or was made with another key, and sends it again to any PC whose last known endpoint differs (a PC that
+didn't answer is tried again at most once a minute). A PC with a different key is sent `{"push": null}`, as are all
+PCs when notifications are blocked. `DELETE /v1/devices/me` on Remove.

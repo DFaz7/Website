@@ -38,7 +38,7 @@ A phone and iPad web app that shows SMU and TabGod status on each paired PC and 
 published with the rest of the site at `/letmeknow/`. `letmeknow/DESIGN.md` explains how it works and
 `letmeknow/PROTOCOL.md` is what each PC must answer.
 
-- Tests: `node --test letmeknow/tests/status.test.mjs`
+- Tests: `node --test letmeknow/tests/status.test.mjs letmeknow/tests/push.test.mjs`
 - Try it locally: `python letmeknow/dev/mock_pc.py`, then open `http://localhost:8765/letmeknow/`, choose Add a PC,
   Type code instead, and use an address and code the script prints.
 - Screenshots: with the script running, `node letmeknow/dev/screens.mjs <folder>` (headless Edge).
