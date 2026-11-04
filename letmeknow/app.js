@@ -7,8 +7,8 @@ import { patchChildren } from "./lib/patch.mjs";
 import { startScan } from "./lib/scan.mjs";
 import {
   APP_NAMES, GROUP_LABELS, agoText, appNote, buildGroups, guessDeviceName, needsYouCount, normalizeAddress,
-  normalizeCode, normalizeStatus, parsePairing, perPersonText, reachText, rowTime, tailnetSuffix, taskState, whatToDo,
-  whatsWrong, whenText,
+  normalizeCode, normalizeStatus, outOfOrderRow, pairText, parsePairing, perPersonText, profileNumber, quefixLine,
+  reachText, rowTime, scannedText, tailnetSuffix, taskState, whatToDo, whatsWrong, whenText,
 } from "./lib/status.mjs";
 
 export const VERSION = "2.1.0";
@@ -206,7 +206,42 @@ function appSection(g, a, now) {
     rowsById.set(r.id, r);
     sec.append(taskRow(r));
   }
+  if (a.quefix) sec.append(quefixRow(a, now));
   return sec;
+}
+
+// TabGod's QueFix line: live or scanned, how many windows, in order or not. Opens the ranked list.
+function quefixRow(a, now) {
+  const q = a.quefix;
+  const look = !q.inOrder ? " warn-row" : q.nearCount ? " near-row" : "";
+  const row = el("div", `quefix-row${look}${a.state !== "ok" ? " stale" : ""}`);
+  row.dataset.qf = a.key;
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  const open = () => openDetail(a.key, "", "quefix");
+  row.addEventListener("click", open);
+  row.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      open();
+    }
+  });
+  const mark = el("span", !q.inOrder ? "qf-mark bad" : q.nearCount ? "qf-mark near" : "qf-mark ok", !q.inOrder ? "!" : q.nearCount ? "↑" : "✓");
+  mark.setAttribute("aria-hidden", "true");
+  const txt = el("div", "qf-text");
+  const line = quefixLine(q);
+  txt.append(el("span", "qf-line", `QueFix${q.live ? " live" : ""} · ${q.windows} ${q.windows === 1 ? "window" : "windows"}`));
+  const tags = el("div", "qf-tags");
+  if (q.nearCount) tags.append(el("span", "qf-tag near", `${q.nearCount} near front`));
+  if (!q.inOrder) tags.append(el("span", "qf-tag bad", `${q.outOfOrderCount || q.outOfOrder.length || "some"} out of order`));
+  if (q.inOrder && !q.nearCount) tags.append(el("span", "qf-tag ok", "all in order"));
+  const ago = el("span", "qf-ago", scannedText(q, now));
+  ago.dataset.scanned = q.scannedAt ?? "";
+  tags.append(ago);
+  txt.append(tags);
+  row.setAttribute("aria-label", `${line}. Show the order`);
+  row.append(mark, txt, svg(CHEVRON, "chev"));
+  return row;
 }
 
 const CHIP = { needs: "red", running: "on", offline: "warn", token: "warn", error: "warn", connecting: "", idle: "" };
@@ -278,6 +313,9 @@ function tick() {
     left.classList.toggle("learning", r.task.learned === false);
     node.querySelector("[data-by]").textContent = t.by;
   }
+  for (const n of document.querySelectorAll("#list [data-scanned]")) {
+    if (n.dataset.scanned) n.textContent = scannedText({ scannedAt: Number(n.dataset.scanned) }, now);
+  }
   if (detailOf) renderDetail();
 }
 
@@ -296,7 +334,79 @@ function group(title) {
   return el("h3", "group", title);
 }
 
+// QueFix: the out-of-order pairs first, then every window by rank with its position.
+function renderQuefix() {
+  const body = $("detail-body");
+  const pc = state.pcs.find((p) => p.key === detailOf.key);
+  const l = (pc && live.get(pc.key)) || {};
+  const q = l.status && l.status.quefix;
+  const now = Date.now();
+  if (!pc || !q) {
+    const box = el("div", "card nothing");
+    box.append(el("b", null, "QueFix isn't on any more"),
+      el("span", null, pc ? `TabGod on ${pcName(pc)} shows it while live mode is on, or for 10 minutes after a scan.` : "That PC was removed."));
+    patchChildren(body, [box]);
+    return;
+  }
+  const device = pcName(pc);
+  const nodes = [];
+  const top = el("div", "card detail-top");
+  const line = el("div", "detail-line");
+  line.append(appBadge(pc.app), el("span", "detail-device", device));
+  const meta = el("div", "detail-meta");
+  if (q.nearCount) meta.append(el("span", "pill near", `${q.nearCount} near front`));
+  meta.append(el("span", q.inOrder ? "pill on" : "pill warn", q.inOrder ? "All in order" : `${q.outOfOrderCount || q.outOfOrder.length} out of order`),
+    el("span", l.error ? "updated warn" : "updated", l.error ? reachText(device, l.okAt, now) : [q.live ? "Live" : "", scannedText(q, now)].filter(Boolean).join(" · ")));
+  const sum = `${q.windows} ${q.windows === 1 ? "window" : "windows"}${q.desktops ? ` on ${q.desktops} ${q.desktops === 1 ? "desktop" : "desktops"}` : ""}`;
+  top.append(line, el("h2", "detail-task", "QueFix"), el("p", "muted", sum), meta);
+  nodes.push(top);
+
+  if (q.outOfOrder.length) {
+    nodes.push(group("Out of order"));
+    const box = el("div", "card qf-pairs");
+    for (const p of q.outOfOrder) box.append(el("div", "qf-pair", pairText(p)));
+    const more = (q.outOfOrderCount || 0) - q.outOfOrder.length;
+    if (more > 0) box.append(el("div", "qf-pair more", `and ${more} more`));
+    nodes.push(box);
+  }
+
+  // A plain list in rank order: the profile (its number first and large) and its queue position.
+  const head = el("div", "qf-head");
+  head.append(el("span", null, "Profile"), el("span", null, "Queue position"));
+  nodes.push(head);
+  const list = el("div", "card qf-list");
+  list.setAttribute("role", "list");
+  if (!q.rows.length) list.append(el("p", "muted pad", "No windows listed."));
+  for (const r of q.rows) {
+    const bad = outOfOrderRow(q, r);
+    const row = el("div", `qf-item${r.near ? " near" : ""}${bad ? " bad" : ""}`);
+    row.setAttribute("role", "listitem");
+    const num = profileNumber(r.name);
+    const rest = num ? r.name.replace(/\s*\(\d+\)\s*$/, "").replace(/^\s*\d+\s*$/, "") : r.name;
+    const who = el("div", "qf-who");
+    who.append(el("span", "qf-num", num || r.name));
+    if (num && rest) who.append(el("span", "qf-name", rest));
+    if (!r.sure) {
+      const dot = el("span", "qf-unsure");
+      dot.setAttribute("role", "img");
+      dot.setAttribute("aria-label", "not sure");
+      dot.title = "not sure";
+      who.append(dot);
+    }
+    const pos = el("div", "qf-right");
+    if (r.near) pos.append(el("span", "qf-near", "near front"));
+    pos.append(el("span", "qf-pos", r.position || "–"));
+    row.append(who, pos);
+    row.setAttribute("aria-label", `Profile ${r.name}, queue position ${r.position || "unknown"}${r.near ? ", near the front" : ""}`
+      + `${r.sure ? "" : ", not sure"}${bad ? ", out of order" : ""}`);
+    list.append(row);
+  }
+  nodes.push(list);
+  patchChildren(body, nodes);
+}
+
 function renderDetail() {
+  if (detailOf.view === "quefix") return renderQuefix();
   const body = $("detail-body");
   const pc = state.pcs.find((p) => p.key === detailOf.key);
   const l = (pc && live.get(pc.key)) || {};
@@ -378,9 +488,10 @@ function renderDetail() {
   patchChildren(body, nodes);
 }
 
-function openDetail(key, taskId) {
+function openDetail(key, taskId, view = "task") {
   if (!detailOf) homeScroll = scrollY;
-  detailOf = { key, taskId };
+  detailOf = { key, taskId, view };
+  $("detail-title").textContent = view === "quefix" ? "QueFix" : "Details";
   renderDetail();
   show("detail");
   try {
@@ -394,10 +505,12 @@ function openDetail(key, taskId) {
 function closeDetail() {
   if (!detailOf) return;
   const id = `${detailOf.key}/${detailOf.taskId}`;
+  const qf = detailOf.view === "quefix" ? detailOf.key : "";
   detailOf = null;
   show("home");
   scrollTo(0, homeScroll);
-  const row = [...document.querySelectorAll("#list [data-row]")].find((n) => n.dataset.row === id);
+  const row = [...document.querySelectorAll("#list [data-row], #list [data-qf]")]
+    .find((n) => (qf ? n.dataset.qf === qf : n.dataset.row === id));
   if (row) row.focus({ preventScroll: true });
 }
 
@@ -437,6 +550,12 @@ function tryOpen() {
     return;
   }
   const l = live.get(pc.key);
+  // A QueFix alert (task "quefix") opens the QueFix list while TabGod still shows it.
+  if (o.task === "quefix" && l && l.status && l.status.quefix) {
+    pendingOpen = null;
+    if (!detailOf || detailOf.key !== pc.key || detailOf.view !== "quefix") openDetail(pc.key, "", "quefix");
+    return;
+  }
   const t = o.task && l && l.status && l.status.tasks.find((x) => x.id === o.task);
   if (t) {
     pendingOpen = null;

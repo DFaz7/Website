@@ -17,6 +17,7 @@
   --red-line: rgba(255, 107, 107, .35);
   --green: #42d98a;
   --green-soft: rgba(66, 217, 138, .14);
+  --on-green: #06210f;
   --amber: #ffb547;
   --amber-soft: rgba(255, 181, 71, .14);
   --tile: #20232a;
@@ -49,6 +50,7 @@
   --red-line: rgba(200, 20, 28, .25);
   --green: #17803a;
   --green-soft: rgba(23, 128, 58, .11);
+  --on-green: #fff;
   --amber: #a35400;
   --amber-soft: rgba(163, 84, 0, .1);
   --tile: #f1f1f5;
@@ -167,6 +169,54 @@ svg { display: block; }
 .needs-text b { color: var(--red); font-weight: 700; overflow-wrap: anywhere; }
 .needs-text span { font-size: 14px; color: var(--text); opacity: .9; overflow-wrap: anywhere; }
 .task.needs-row { box-shadow: inset 0 0 0 1px var(--red-line); }
+
+/* TabGod's QueFix line under its tasks, and its list */
+.quefix-row {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; margin: 0 -4px;
+  border-radius: var(--radius-in); background: var(--card-2); cursor: pointer; transition: transform .1s, background-color .1s;
+}
+.quefix-row:active { transform: scale(.99); background: var(--tile); }
+.quefix-row.warn-row { box-shadow: inset 0 0 0 1px var(--amber-soft); }
+.quefix-row.stale { opacity: .6; }
+.qf-mark {
+  flex: none; width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center; font-size: 14px; font-weight: 800;
+}
+.qf-mark.ok { background: var(--green-soft); color: var(--green); }
+.qf-mark.bad { background: var(--amber-soft); color: var(--amber); }
+.qf-mark.near { background: var(--green); color: var(--on-green); }
+.quefix-row.near-row { box-shadow: inset 0 0 0 1px var(--green-soft); }
+.pill.near { background: var(--green); color: var(--on-green); }
+.qf-text { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.qf-line { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.qf-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.qf-tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.qf-tag.near { background: var(--green); color: var(--on-green); }
+.qf-tag.bad { background: var(--amber-soft); color: var(--amber); }
+.qf-tag.ok { background: var(--green-soft); color: var(--green); }
+.qf-ago { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
+.qf-ago:empty { display: none; }
+
+.qf-pairs { padding: 4px var(--pad); }
+.qf-pair { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 0; font-size: 16px; font-weight: 600; color: var(--amber); }
+.qf-pair::before { content: "!"; flex: none; width: 22px; height: 22px; border-radius: 11px; background: var(--amber-soft); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+.qf-pair + .qf-pair { border-top: 1px solid var(--line); }
+.qf-pair.more { color: var(--muted); font-weight: 500; font-size: 14px; }
+.qf-pair.more::before { visibility: hidden; }
+.qf-head { display: flex; justify-content: space-between; margin: 12px 4px -4px; font-size: 13px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.qf-list { padding: 0 var(--pad); overflow: hidden; }
+.qf-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 0; }
+.qf-item + .qf-item { border-top: 1px solid var(--line); }
+.qf-item.bad, .qf-item.near { margin: 0 calc(-1 * var(--pad)); padding-left: var(--pad); padding-right: var(--pad); }
+.qf-item.bad { box-shadow: inset 3px 0 0 var(--amber); }
+.qf-item.near { box-shadow: inset 3px 0 0 var(--green); background: var(--green-soft); }
+.qf-item.near .qf-num { color: var(--green); }
+.qf-right { flex: none; display: flex; align-items: center; gap: 8px; }
+.qf-near { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--green); color: var(--on-green); white-space: nowrap; }
+.qf-who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.qf-num { font-size: 20px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.qf-name { font-size: 15px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qf-unsure { flex: none; align-self: center; width: 7px; height: 7px; border-radius: 4px; background: var(--muted); opacity: .6; }
+.qf-pos { flex: none; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .app-badge {
   flex: none; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 8px;
