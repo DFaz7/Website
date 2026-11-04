@@ -5,9 +5,9 @@ import { test } from "node:test";
 import * as S from "../lib/status.mjs";
 import * as store from "../lib/store.mjs";
 import {
-  STATE_LABELS, agoText, b64urlToBytes, buildBoard, clockText, guessDeviceName, leftText, needsYouCount,
-  normalizeAddress, normalizeCode, normalizeStatus, notRunningTitle, parsePairing, rowTime, secondsLeft, sortTasks,
-  stateNote, tailnetSuffix, timeLine,
+  GROUP_LABELS, agoText, appNote, b64urlToBytes, buildGroups, clockText, guessDeviceName, leftText, needsYouCount,
+  normalizeAddress, normalizeCode, normalizeStatus, parsePairing, reachText, rowTime, secondsLeft, sortTasks,
+  tailnetSuffix, timeLine,
 } from "../lib/status.mjs";
 
 const SMU = {
@@ -169,7 +169,7 @@ test("store: one entry per PC and app", () => {
   assert.equal(s.pcs.find((p) => p.key === "smu:a1").token, "4");
   s = store.removePc(s, "smu:a1");
   assert.deepEqual(s.pcs.map((p) => p.key), ["tabgod:a1"]);
-  assert.deepEqual(store.load(), { v: 1, deviceName: "", pcs: [] }); // no localStorage here: empty, no throw
+  assert.deepEqual(store.load(), { v: 1, deviceName: "", theme: "dark", pcs: [] }); // no localStorage here: empty, no throw
 });
 
 test("app and service worker carry the same version, and the worker caches every lib file", () => {
@@ -177,23 +177,24 @@ test("app and service worker carry the same version, and the worker caches every
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
   const v = (s) => /VERSION = "([^"]+)"/.exec(s)[1];
   assert.equal(v(app), v(sw));
-  for (const f of ["lib/api.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs", "app.js", "app.css", "index.html"]) {
+  for (const f of ["lib/api.mjs", "lib/push.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs", "app.js", "app.css", "theme.js",
+    "index.html"]) {
     assert.ok(sw.includes(`"${f}"`), `${f} in the shell list`);
   }
 });
 
-// ---------- The one Active list ----------
+// ---------- The home screen: one card per PC ----------
 
 const NOW = Date.parse("2026-11-01T03:00:00Z");
 const task = (id, name, extra = {}) => ({ id, name, done: 1, failed: 0, left: 5, running: false, needs_you: false,
   needs_you_reason: null, learned: true, eta_seconds: null, eta_at: null, ...extra });
 const running = (id, name, mins, extra = {}) => task(id, name, { running: true, eta_seconds: mins * 60,
   eta_at: new Date(NOW + mins * 60_000).toISOString(), ...extra });
-const entry = (key, app, device, tasks, extra = {}) => ({ key, app, device, fetchedAt: NOW, error: "",
-  status: normalizeStatus({ app, device: { name: device, active: tasks.some((t) => t.running) }, tasks }), ...extra });
+const entry = (key, app, device, tasks, extra = {}) => ({ key, app, device, pcId: key.split(":")[1], fetchedAt: NOW,
+  okAt: 0, error: "", status: normalizeStatus({ app, device: { name: device, active: tasks.some((t) => t.running) }, tasks }), ...extra });
 
 function board() {
-  return buildBoard([
+  return buildGroups([
     entry("smu:zb", "smu", "ZBook", [running("t1", "Gym list", 55, { needs_you: true, needs_you_reason: "A question" }),
       task("t3", "Spring offers", { left: 0 })]),
     entry("tabgod:zb", "tabgod", "ZBook", [running("g1", "Profiles A", 4)]),
@@ -206,69 +207,81 @@ function board() {
     entry("smu:dt", "smu", "Desktop", [], { status: null, error: "offline" }),
     entry("tabgod:l2", "tabgod", "Laptop 2", [], { status: null, error: "token" }),
     entry("smu:new", "smu", "Mini 3", [], { status: null }),
-    entry("smu:stale", "smu", "Old PC", [running("s1", "Stale run", 5)], { error: "offline" }),
+    entry("smu:stale", "smu", "Old PC", [running("s1", "Stale run", 5)], { error: "offline", okAt: NOW - 3 * 60_000 }),
   ], NOW);
 }
 
-test("active order: needs you, then least time left, then learning by task name; ties by device", () => {
-  const rows = board().active.map((r) => `${r.app} ${r.device} ${r.task.name}`);
-  assert.deepEqual(rows, [
-    "tabgod Mini 2 Profiles C", // needs you, by device name ("Mini 2" before "ZBook")
-    "smu ZBook Gym list",
-    "tabgod ZBook Profiles A", // 4 min
-    "smu Alpha Club members", // 140 min, tie: by device name
-    "smu Mini 1 Club members",
-    "smu Mini 10 Address book", // learning the form: by task name ("Address book" before "Book club")
-    "smu Mini 2 Book club",
+test("one card per PC: SMU and TabGod on one PC share it, SMU first", () => {
+  const zb = board().find((g) => g.name === "ZBook");
+  assert.deepEqual(zb.apps.map((a) => a.key), ["smu:zb", "tabgod:zb"]);
+  assert.deepEqual(zb.apps.map((a) => a.rows.map((r) => r.task.name)), [["Gym list"], ["Profiles A"]]);
+  assert.equal(zb.needs, 1);
+  assert.equal(zb.running, 2);
+  assert.equal(zb.state, "needs");
+});
+
+test("card order: needs you, then running by least time left, then problems, checking, idle; ties by name", () => {
+  assert.deepEqual(board().map((g) => `${g.state} ${g.name}`), [
+    "needs Mini 2", // needs you, by name ("Mini 2" before "ZBook")
+    "needs ZBook",
+    "running Alpha", // 140 min, tie: by name
+    "running Mini 1",
+    "running Mini 10", // only learning the form: no time yet
+    "token Laptop 2",
+    "offline Desktop",
+    "offline Old PC",
+    "connecting Mini 3",
   ]);
 });
 
-test("each active row carries its app, device and task, and a needs-you row keeps its reason", () => {
-  const r = board().active[0];
-  assert.equal(r.app, "tabgod");
-  assert.equal(r.device, "Mini 2");
-  assert.equal(r.task.name, "Profiles C");
-  assert.equal(r.task.reason, "Both AIs couldn't do a step");
-  assert.equal(r.group, 0);
+test("rows in a PC: needs you first, then least time left, then learning by name", () => {
+  const g = buildGroups([
+    entry("smu:x", "smu", "X", [running("a", "Slow", 90), running("b", "Fast", 5),
+      running("c", "Zed", 0, { learned: false, eta_seconds: null, eta_at: null }),
+      running("d", "Asks", 50, { needs_you: true, needs_you_reason: "A question" }),
+      task("e", "Waits", { needs_you: true, needs_you_reason: "IWM needs you" })]),
+  ], NOW)[0];
+  assert.deepEqual(g.apps[0].rows.map((r) => r.task.name), ["Asks", "Waits", "Fast", "Slow", "Zed"]);
+  assert.equal(g.minSecs, 5 * 60);
 });
 
-test("a needs-you task that isn't running is still in the list", () => {
-  const b = buildBoard([entry("smu:a", "smu", "ZBook", [task("t", "Gym", { needs_you: true, needs_you_reason: "IWM needs you" })])], NOW);
-  assert.equal(b.active.length, 1);
-  assert.equal(b.notRunning.length, 0);
-});
-
-test("not running: problems first, then connecting, then idle; nothing silently disappears", () => {
+test("nothing silently disappears: every PC/app has its place, problems keep their last known rows", () => {
   const b = board();
-  assert.deepEqual(b.notRunning.map((r) => `${r.state} ${r.app} ${r.device}`), [
-    "token tabgod Laptop 2",
-    "offline smu Desktop",
-    "offline smu Old PC", // its last known run is not shown as running: the PC can't be reached
-    "connecting smu Mini 3",
-    "idle tabgod Mini 1",
-  ]);
-  const all = new Set([...b.active.map((r) => r.pcKey), ...b.notRunning.map((r) => r.key)]);
-  assert.equal(all.size, 12);
+  assert.equal(b.flatMap((g) => g.apps).length, 12);
+  const old = b.find((g) => g.name === "Old PC");
+  assert.equal(old.apps[0].state, "offline");
+  assert.deepEqual(old.apps[0].rows.map((r) => [r.task.name, r.stale]), [["Stale run", true]]);
+  assert.equal(appNote(old.apps[0], "Old PC", NOW), "Can't reach Old PC · last known 3 min ago");
+  const dt = b.find((g) => g.name === "Desktop");
+  assert.equal(appNote(dt.apps[0], "Desktop", NOW), "Can't reach Desktop · no answer yet");
+  const l2 = b.find((g) => g.name === "Laptop 2");
+  assert.match(appNote(l2.apps[0], "Laptop 2", NOW), /^No longer paired/);
+  const m1 = b.find((g) => g.name === "Mini 1");
+  assert.equal(appNote(m1.apps[1], "Mini 1", NOW), "Nothing running · 12 left");
 });
 
-test("a PC/app with only finished tasks is idle, with the people left counted", () => {
-  const b = buildBoard([entry("x", "smu", "ZBook", [task("a", "A", { left: 0 }), task("b", "B", { left: 7 })])], NOW);
-  assert.deepEqual(b.notRunning, [{ key: "x", app: "smu", device: "ZBook", state: "idle", left: 7 }]);
-  assert.equal(stateNote(b.notRunning[0]), "Nothing running · 7 left");
-  assert.equal(stateNote({ state: "idle", left: 0 }), "Nothing running");
+test("a PC kept from before shows its rows but counts as checking until it answers", () => {
+  const g = buildGroups([entry("smu:z", "smu", "ZBook", [running("a", "A", 5)], { fresh: false, okAt: NOW - 60_000 })], NOW)[0];
+  assert.equal(g.apps[0].state, "connecting");
+  assert.equal(g.apps[0].rows[0].stale, true);
+  assert.equal(g.state, "connecting");
+  assert.equal(buildGroups([entry("smu:z", "smu", "ZBook", [running("a", "A", 5)])], NOW)[0].state, "running");
 });
 
-test("labels and notes for every state", () => {
-  assert.deepEqual(STATE_LABELS, { idle: "Idle", offline: "Can't reach", token: "Not paired", error: "Error", connecting: "Connecting" });
-  for (const s of Object.keys(STATE_LABELS)) assert.ok(stateNote({ state: s, left: 0 }).length > 5, s);
-  assert.match(stateNote({ state: "offline" }), /Tailscale/);
-  assert.match(stateNote({ state: "token" }), /^Not paired: pair it again/);
+test("PCs without an id are told apart by name; a needs-you task that isn't running still shows", () => {
+  const b = buildGroups([
+    entry("smu:a", "smu", "ZBook", [task("t", "Gym", { needs_you: true, needs_you_reason: "IWM needs you" })], { pcId: "" }),
+    entry("tabgod:b", "tabgod", "zbook", [], { pcId: "" }),
+  ], NOW);
+  assert.equal(b.length, 1);
+  assert.equal(b[0].state, "needs");
+  assert.equal(b[0].apps[0].rows.length, 1);
 });
 
-test("the collapsed section's title counts pairs and flags the ones to look at", () => {
-  assert.deepEqual(notRunningTitle(board().notRunning), { title: "Not running · 5", note: "3 need a look" });
-  assert.deepEqual(notRunningTitle([{ state: "offline" }]), { title: "Not running · 1", note: "1 needs a look" });
-  assert.deepEqual(notRunningTitle([{ state: "idle" }, { state: "connecting" }]), { title: "Not running · 2", note: "" });
+test("can't reach words and every card label", () => {
+  assert.equal(reachText("ZBook", NOW - 5 * 60_000, NOW), "Can't reach ZBook · last known 5 min ago");
+  assert.equal(reachText("", 0, NOW), "Can't reach the PC · no answer yet");
+  for (const s of ["needs", "running", "offline", "token", "error", "connecting", "idle"]) assert.ok(GROUP_LABELS[s], s);
 });
 
 test("row time: short time left and finish, learning, nothing", () => {
@@ -282,11 +295,11 @@ test("row time: short time left and finish, learning, nothing", () => {
 });
 
 test("ordering by time left follows the countdown, not the PC's old figure", () => {
-  const b = buildBoard([
-    entry("a", "smu", "A", [running("1", "One", 10)]),
-    entry("b", "smu", "B", [running("2", "Two", 9, { eta_at: new Date(NOW + 20 * 60_000).toISOString() })]),
+  const b = buildGroups([
+    entry("smu:a", "smu", "A", [running("1", "One", 10)]),
+    entry("smu:b", "smu", "B", [running("2", "Two", 9, { eta_at: new Date(NOW + 20 * 60_000).toISOString() })]),
   ], NOW);
-  assert.deepEqual(b.active.map((r) => r.device), ["A", "B"]);
+  assert.deepEqual(b.map((g) => g.name), ["A", "B"]);
 });
 
 test("the main screen has no app tabs any more", () => {
@@ -390,11 +403,11 @@ test("per-person and gap seconds are kept for the detail view", () => {
   assert.equal(t.gapSeconds, 20);
 });
 
-test("version 2.0.0 in both app and service worker; the detail view is in the page", () => {
+test("version 2.1.0 in both app and service worker; the detail view is in the page", () => {
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-  assert.match(app, /VERSION = "2\.0\.0"/);
-  assert.match(sw, /VERSION = "2\.0\.0"/);
+  assert.match(app, /VERSION = "2\.1\.0"/);
+  assert.match(sw, /VERSION = "2\.1\.0"/);
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.ok(html.includes('id="detail"') && html.includes('id="detail-back"'));
 });

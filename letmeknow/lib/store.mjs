@@ -1,10 +1,11 @@
 // What this device remembers, in localStorage on the site's origin (an installed Home Screen app has its own copy).
-// { v: 1, deviceName, pcs: [{ key, app, url, pc, name, token, deviceId, vapid, pushEndpoint, pairedAt, rotatedAt }] }
+// { v: 1, deviceName, theme: "dark" | "light", pcs: [{ key, app, url, pc, name, token, deviceId, vapid, pushEndpoint,
+//   pairedAt, rotatedAt }] }
 
 const KEY = "lmk.v1";
 
 function blank() {
-  return { v: 1, deviceName: "", pcs: [] };
+  return { v: 1, deviceName: "", theme: "dark", pcs: [] };
 }
 
 export function load() {
@@ -44,4 +45,27 @@ export function removePc(state, key) {
 
 export function updatePc(state, key, patch) {
   return { ...state, pcs: state.pcs.map((p) => (p.key === key ? { ...p, ...patch } : p)) };
+}
+
+// The last answer from each PC, kept apart from the pairings so the list shows at once on open (marked as checking)
+// and a PC that stops answering still shows what it last said. { [pc key]: { status, okAt } }
+const LAST = "lmk.v1.last";
+
+export function loadLast() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LAST) || "null");
+    if (s && typeof s === "object" && !Array.isArray(s)) return s;
+  } catch {
+    // unreadable or blocked storage: nothing known yet
+  }
+  return {};
+}
+
+export function saveLast(last) {
+  try {
+    localStorage.setItem(LAST, JSON.stringify(last));
+    return true;
+  } catch {
+    return false;
+  }
 }
