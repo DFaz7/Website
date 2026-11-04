@@ -85,8 +85,10 @@ Sends one test push to the calling device now (`kind: "test"`). `{"ok":true}`, o
 it has no subscription, 502 `{"error":"push failed","status":<push service status>}`.
 
 ### `POST /v1/token/rotate`
-Answers `{"token":"<new>"}`; the old token stops working once the new one has been used once, or after 10 minutes.
-The app rotates every 30 days; a 404 here (not built yet) is ignored.
+Answers `{"token":"<new>"}`; the old token stops working once the new one has been used once.
+The app rotates every 30 days; a 404 here (not built yet) is ignored. The phone keeps the old token until a call with
+the new one has worked (a 401 with the new one is retried with the old one), and when the answer is lost (the phone
+suspended mid-call) it asks again later with the old token, so the PC must keep accepting it.
 
 ### `GET /v1/status`
 SMU's existing `status_view()` plus `"app"` and `"protocol"`:
@@ -144,7 +146,7 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
   (PKCS#8 PEM). Backup: `C:\Users\danie\OneDrive\Desktop\App's\Signing Keys\LetMeKnow\vapid_private.pem` +
   `SOURCE.txt`. On start: if one side is missing copy it from the other; if both are missing make it once (and
   write both); if they differ, stop pushing and say so in Settings. Never commit, log or print it.
-- Headers: `TTL: 3600` (needs_you) or `86400` (others), `Urgency: high` for needs_you else `normal`,
+- Headers: `TTL: 3600` (needs_you) or `86400` (others), `Urgency: high` for needs_you and for a went-quiet stop (`kind: "stopped"`, `reason: "quiet"`) else `normal`,
   `Topic: <app>-<task id>` (newest replaces an undelivered older one; Topic allows only URL-safe base64
   characters, at most 32).
 - Payload (JSON, UTF-8, under 1 KB):
@@ -180,9 +182,13 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
 ## Phone side (for reference)
 
 Stores per PC: `{app, url, pc, name, token, deviceId, vapid, pushEndpoint}` in `localStorage` (`lmk.v1`), and each
-PC's last answer (`lmk.v1.last`). Polls `/v1/status` every 10 s while open. Alerts: the pair tap also asks for
-notification permission; once granted, the phone subscribes with the shared key and sends `PUT /v1/devices/me` with
-its subscription to every paired PC with that key. On every open it re-subscribes silently when the subscription is
-missing or was made with another key, and sends it again to any PC whose last known endpoint differs (a PC that
-didn't answer is tried again at most once a minute). A PC with a different key is sent `{"push": null}`, as are all
+PC's last answer (`lmk.v1.last`). Polls `/v1/status` every 10 s while open. Alerts: the pair tap (and a "Turn on
+alerts" tap) asks for notification permission and, when the shared key is known from a PC paired before, calls
+`pushManager.subscribe()` in the same tap, before the pairing's network call (iOS allows both only inside a tap).
+The first PC's key comes with its pairing answer, so that subscribe follows the pairing, or the next "Turn on alerts"
+tap if the browser refuses it outside a tap. The phone then sends `PUT /v1/devices/me` with its subscription to every
+paired PC with that key. On every open, only where permission is already granted, it re-subscribes silently when the
+subscription is missing or was made with another key, asks each PC `GET /v1/devices` and sends it again to any PC
+whose last known endpoint differs or whose list shows `push: false` for this phone (a PC that didn't answer is tried
+again at most once a minute). A PC with a different key is sent `{"push": null}`, as are all
 PCs when notifications are blocked. `DELETE /v1/devices/me` on Remove.
