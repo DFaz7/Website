@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en-GB" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -8,34 +8,44 @@
 <meta name="robots" content="noindex">
 <title>Let Me Know</title>
 <meta name="description" content="Your SMU and TabGod status on each PC, with an alert when you're needed.">
-<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0b0c0f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Let Me Know">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="app.css">
+<script src="theme.js"></script>
 <script type="module" src="app.js"></script>
 </head>
 <body>
-<div id="update" class="update" hidden>
+<div id="update" class="update" role="status" hidden>
   <span>A new version is ready.</span>
-  <button type="button" class="link" id="update-btn">Update</button>
+  <button type="button" class="btn small light" id="update-btn">Update</button>
 </div>
+<p id="announce" class="sr-only" aria-live="polite"></p>
 
-<main id="home" class="view">
+<main id="home" class="view home">
   <header class="top">
-    <h1>Let Me Know</h1>
-    <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    </button>
+    <div class="top-title">
+      <h1>Let Me Know</h1>
+      <p class="summary" id="summary" hidden></p>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="icon-btn" id="open-add" aria-label="Add a PC">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
   </header>
   <div class="pull" id="pull" aria-hidden="true"><span class="spinner"></span></div>
-  <section id="list" class="list" aria-live="polite"></section>
-  <p class="install-hint" id="install-hint" hidden>For alerts, add this app to your Home Screen: in Safari tap Share, then <b>Add to Home Screen</b>.</p>
+  <div id="alert-step" class="alert-slot" hidden></div>
+  <div id="list" class="list"></div>
 </main>
 
 <section id="add" class="view sheet" hidden aria-labelledby="add-title">
@@ -45,18 +55,40 @@
     <span class="bar-gap"></span>
   </header>
   <div class="sheet-body">
-    <div id="scan-box" class="scan-box">
-      <video id="scan-video" playsinline muted></video>
-      <div class="scan-frame" aria-hidden="true"></div>
-      <p class="scan-note" id="scan-note">Point the camera at the QR code in SMU or TabGod: Settings, Pair a phone.</p>
+    <p class="tip" id="add-tip" hidden>Add Let Me Know to your Home Screen first and pair from there: the Home Screen app keeps its own list, and only it gets alerts.</p>
+    <div id="scan-step" class="step">
+      <div class="scan-box">
+        <video id="scan-video" playsinline muted></video>
+        <div class="scan-frame" aria-hidden="true"></div>
+        <p class="scan-note" id="scan-note" aria-live="polite">Point the camera at the QR code in SMU or TabGod: Settings, Pair a phone.</p>
+      </div>
+      <button type="button" class="btn ghost wide" id="show-type">Type the address and code instead</button>
     </div>
-    <button type="button" class="btn ghost wide" id="show-type">Type code instead</button>
-    <form id="type-form" class="card form" hidden autocomplete="off">
+    <form id="type-form" class="card form step" hidden autocomplete="off" novalidate>
       <p class="muted" id="type-note">Type the address and code shown under the QR code on the PC.</p>
-      <label>PC address<input id="f-address" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="zbook.tail1234.ts.net" required></label>
-      <label>Code<input id="f-code" autocapitalize="characters" spellcheck="false" placeholder="K7Q2-9XMP" maxlength="12" required></label>
-      <button type="submit" class="btn wide" id="pair-btn">Pair</button>
+      <label for="f-address">PC address</label>
+      <input id="f-address" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="zbook.tail1234.ts.net" required>
+      <label for="f-code">Code</label>
+      <input id="f-code" class="code-input" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="K7Q2-9XMP" maxlength="9" required>
+      <button type="submit" class="btn wide big" id="pair-btn">Pair</button>
+      <p class="foot-note">Pairing also turns on alerts for this device.</p>
     </form>
+    <div id="confirm-step" class="card confirm step" hidden>
+      <p class="muted">Found this PC:</p>
+      <div class="confirm-who" id="confirm-who"></div>
+      <button type="button" class="btn wide big" id="confirm-btn">Pair</button>
+      <p class="foot-note">Pairing also turns on alerts for this device.</p>
+      <button type="button" class="link" id="rescan-btn">Scan another code</button>
+    </div>
+    <div id="done-step" class="step done" hidden>
+      <div class="card done-card">
+        <span class="done-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <h3 id="done-title">Paired</h3>
+        <p class="muted" id="done-text"></p>
+      </div>
+      <div id="done-alerts" class="done-alerts"></div>
+      <button type="button" class="btn wide big" id="done-btn">Done</button>
+    </div>
     <p class="msg" id="add-msg" role="alert" hidden></p>
   </div>
 </section>
@@ -76,10 +108,20 @@
 
     <h3 class="group">Alerts</h3>
     <div class="card">
-      <div class="row"><span id="push-state">Alerts are off</span><button type="button" class="btn small" id="push-btn">Turn on</button></div>
+      <div class="row"><span id="push-state">Alerts are off</span><button type="button" class="btn small" id="push-btn" hidden>Turn on</button></div>
       <div class="row" id="test-row" hidden><span>Send a test alert</span><button type="button" class="btn small ghost" id="test-btn">Send</button></div>
     </div>
     <p class="foot" id="push-foot">You get an alert when a PC needs you, or a run finishes or stops.</p>
+
+    <h3 class="group">Look</h3>
+    <div class="card">
+      <div class="row"><span>Theme</span>
+        <div class="seg" role="group" aria-label="Theme">
+          <button type="button" data-theme-pick="dark" aria-pressed="true">Dark</button>
+          <button type="button" data-theme-pick="light" aria-pressed="false">Light</button>
+        </div>
+      </div>
+    </div>
 
     <h3 class="group">Paired PCs</h3>
     <div class="card" id="pc-list"></div>
@@ -99,11 +141,15 @@
 </section>
 
 <template id="empty-tpl">
-  <div class="empty">
+  <div class="empty card">
     <img src="icons/icon-192.png" alt="" width="72" height="72">
-    <h2></h2>
-    <p></p>
-    <button type="button" class="btn" data-add>Add a PC</button>
+    <h2>No PCs yet</h2>
+    <p>Pair Let Me Know with SMU or TabGod on your PC to see its status here and get alerts.</p>
+    <ol class="steps">
+      <li>On the PC, open SMU or TabGod, then <b>Settings</b>, <b>Pair a phone</b>.</li>
+      <li>Here, tap <b>Add a PC</b> and point the camera at the QR code.</li>
+    </ol>
+    <button type="button" class="btn wide big" data-add>Add a PC</button>
   </div>
 </template>
 </body>
