@@ -70,7 +70,7 @@ class FakePC:
         self.name, self.app, self.port, self.busy = name, app, port, busy
         self.down = down  # pairs, then never answers /v1/status: the phone shows "Can't reach"
         self.revoked = revoked  # pairs, then refuses the token: the phone shows "Not paired"
-        self.id = hashlib.sha256(f"{name} {app}".encode()).hexdigest()[:16]
+        self.id = hashlib.sha256(name.encode()).hexdigest()[:16]  # one id per PC, shared by SMU and TabGod
         self.tasks = tasks
         self.start = time.time()
         self.devices: dict[str, dict] = {}  # device id -> {name, hash, push, paired_at, last_seen}

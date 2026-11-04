@@ -1,4 +1,4 @@
-// Screenshots of the app against dev/mock_pc.py, in headless Edge: iPhone and iPad sizes, light and dark.
+// Screenshots of the app against dev/mock_pc.py, in headless Edge: iPhone and iPad sizes, dark and light theme.
 //   python letmeknow/dev/mock_pc.py          (in another terminal)
 //   node letmeknow/dev/screens.mjs <out dir>
 // Also checks the service worker installs and caches the app shell. The Edge profile is a temp folder, removed after.
@@ -60,11 +60,21 @@ async function connect() {
   throw new Error("Edge did not start");
 }
 
+// The app's own theme setting (Settings, Look): dark unless light is picked.
+async function setTheme(theme) {
+  await evaluate(`(() => {
+    const s = JSON.parse(localStorage.getItem("lmk.v1") || '{"v":1,"pcs":[]}');
+    s.theme = ${JSON.stringify(theme)};
+    localStorage.setItem("lmk.v1", JSON.stringify(s));
+  })()`);
+}
+
 // full: the whole page, not just what fits on the screen.
-async function view(name, w, h, ua, scheme, script = "", full = false) {
+async function view(name, w, h, ua, theme, script = "", full = false) {
   await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: true });
   await send("Emulation.setUserAgentOverride", { userAgent: ua });
-  await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
+  await go(SITE);
+  await setTheme(theme);
   await go(SITE);
   if (script) {
     await evaluate(script);
@@ -94,19 +104,24 @@ try {
   await send("Page.enable");
   await send("Runtime.enable");
 
-  await view("iphone-empty-light", 390, 844, IPHONE_UA, "light");
+  // An iPhone Safari tab: the Add to Home Screen step for alerts, and the empty list.
+  await view("iphone-empty-dark", 390, 844, IPHONE_UA, "dark");
 
-  // Pair the three test PCs through the app's own typed-code form.
+  // Pair the test PCs through the app's own typed-code form.
   for (const port of PCS) {
     const { code } = await (await fetch(`http://localhost:${port}/dev/code`)).json();
     const msg = await evaluate(`(async () => {
-      document.querySelector("[data-add]").click();
+      document.getElementById("open-add").click();
       await new Promise((r) => setTimeout(r, 400));
+      document.getElementById("show-type").click();
       document.getElementById("f-address").value = "http://localhost:${port}";
       document.getElementById("f-code").value = ${JSON.stringify(code)};
       document.getElementById("type-form").requestSubmit();
       await new Promise((r) => setTimeout(r, 2000));
-      return document.getElementById("add-msg").textContent;
+      const done = !document.getElementById("done-step").hidden;
+      const text = done ? document.getElementById("done-title").textContent : document.getElementById("add-msg").textContent;
+      if (done) document.getElementById("done-btn").click();
+      return text;
     })()`);
     console.log(`pair :${port}:`, msg);
   }
@@ -119,37 +134,35 @@ try {
   })()`);
   console.log("service worker:", JSON.stringify(sw));
 
-  const order = await evaluate(`[...document.querySelectorAll("#list [data-row]")].map((r) =>
-    r.querySelector(".app-badge").textContent + " " + r.querySelector(".item-device").textContent + " | " +
-    r.querySelector(".item-task").textContent + " | " + r.querySelector("[data-left]").textContent)`);
-  console.log("active:\n  " + order.join("\n  "));
-  const quiet = await evaluate(`[...document.querySelectorAll(".quiet-row")].map((r) => r.textContent)`);
-  console.log("not running:\n  " + quiet.join("\n  "));
+  await sleep(1500);
+  const cards = await evaluate(`[...document.querySelectorAll("#list .pc")].map((c) =>
+    c.querySelector(".pc-name").textContent + " [" + c.querySelector(".pc-head .pill").textContent + "] " +
+    [...c.querySelectorAll(".app-sec")].map((s) => s.querySelector(".app-badge").textContent + ": " +
+      ([...s.querySelectorAll("[data-row]")].map((r) => r.querySelector(".task-name").textContent + " " +
+        r.querySelector("[data-left]").textContent).join(", ") || (s.querySelector(".app-note")?.textContent || ""))).join(" | "))`);
+  console.log("cards:\n  " + cards.join("\n  "));
 
-  const open = `document.querySelector(".quiet").open = true; document.querySelector(".quiet").dispatchEvent(new Event("toggle"))`;
   const settings = `document.getElementById("open-settings").click()`;
-  // The detail view of the Active row whose device and task match.
-  const detail = (device, task) => `[...document.querySelectorAll("#list [data-row]")].find((r) =>
-    r.querySelector(".item-device").textContent === ${JSON.stringify(device)} &&
-    r.querySelector(".item-task").textContent === ${JSON.stringify(task)}).click()`;
+  // The detail view of the task row whose PC and task match.
+  const detail = (device, task) => `[...document.querySelectorAll("#list .pc")].find((c) =>
+    c.querySelector(".pc-name").textContent === ${JSON.stringify(device)}).querySelectorAll("[data-row]").forEach((r) => {
+      if (r.querySelector(".task-name").textContent === ${JSON.stringify(task)}) r.click();
+    })`;
   const scenes = (process.env.LMK_SCENES || "list,detail").split(",");
   if (scenes.includes("list")) {
-    for (const scheme of ["light", "dark"]) {
-      await view(`iphone-active-${scheme}`, 390, 844, IPHONE_UA, scheme);
-      await view(`iphone-full-${scheme}`, 390, 844, IPHONE_UA, scheme, open, true);
-      await view(`ipad-active-${scheme}`, 820, 1180, IPAD_UA, scheme);
-      await view(`ipad-full-${scheme}`, 820, 1180, IPAD_UA, scheme, open, true);
+    for (const theme of ["dark", "light"]) {
+      await view(`iphone-home-${theme}`, 390, 844, IPHONE_UA, theme);
+      await view(`iphone-full-${theme}`, 390, 844, IPHONE_UA, theme, "", true);
+      await view(`ipad-full-${theme}`, 820, 1180, IPAD_UA, theme, "", true);
     }
-    await view("iphone-settings-light", 390, 844, IPHONE_UA, "light", settings, true);
+    await view("iphone-se-home-dark", 320, 568, IPHONE_UA, "dark");
+    await view("iphone-settings-dark", 390, 844, IPHONE_UA, "dark", settings, true);
   }
   if (scenes.includes("detail")) {
-    for (const scheme of ["light", "dark"]) {
-      await view(`iphone-detail-attention-${scheme}`, 390, 844, IPHONE_UA, scheme, detail("ZBook", "Gym list"), true);
-      await view(`ipad-detail-attention-${scheme}`, 820, 1180, IPAD_UA, scheme, detail("ZBook", "Gym list"), true);
+    for (const theme of ["dark", "light"]) {
+      await view(`iphone-detail-attention-${theme}`, 390, 844, IPHONE_UA, theme, detail("ZBook", "Gym list"), true);
     }
-    await view("iphone-detail-tabgod-light", 390, 844, IPHONE_UA, "light", detail("Mini 2", "Profiles batch C"), true);
-    await view("iphone-detail-running-dark", 390, 844, IPHONE_UA, "dark", detail("Mini 1", "Club members"), true);
-    await view("iphone-detail-learning-light", 390, 844, IPHONE_UA, "light", detail("Mini 2", "Book club"), true);
+    await view("iphone-detail-tabgod-dark", 390, 844, IPHONE_UA, "dark", detail("Mini 2", "Profiles batch C"), true);
     // Back: the button (through history), then the browser's own back, both return to the list.
     const back = await evaluate(`(async () => {
       const wait = () => new Promise((r) => setTimeout(r, 300));
