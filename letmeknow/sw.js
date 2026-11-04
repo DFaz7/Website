@@ -10,10 +10,12 @@ const SHELL = [
   "app.js",
   "theme.js",
   "lib/api.mjs",
+  "lib/patch.mjs",
   "lib/push.mjs",
   "lib/scan.mjs",
   "lib/status.mjs",
   "lib/store.mjs",
+  "lib/tokens.mjs",
   "vendor/jsqr.js",
   "manifest.webmanifest",
   "icons/icon.svg",
@@ -75,8 +77,16 @@ function readPush(event) {
 
 const APP = { smu: "SMU", tabgod: "TabGod" };
 
+// The same second guard as the app's own (lib/status.mjs scrub): email and IP addresses never reach the screen.
+function scrub(s) {
+  return s
+    .replace(/[^\s@<>()"',;]+@[^\s@<>()"',;]+\.[a-z]{2,}/gi, "[email]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[address]")
+    .replace(/\b(?:[0-9a-f]{1,4}:){4,7}[0-9a-f]{1,4}\b/gi, "[address]");
+}
+
 function cut(s, n) {
-  s = typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "";
+  s = typeof s === "string" ? scrub(s.replace(/\s+/g, " ").trim()) : "";
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
@@ -96,8 +106,10 @@ function words(p) {
       return [`${pc}: a run stopped`, on("stopped")];
     case "test":
       return [`Test alert from ${pc}`, "Alerts work on this device."];
-    default:
+    case "needs_you":
       return [`${pc} needs you`, on("open Let Me Know to see why")];
+    default: // a kind this version doesn't know, or an unreadable push: say nothing it can't know
+      return [p.pc_name ? `News from ${pc}` : "Let Me Know", on("open Let Me Know to see what's new")];
   }
 }
 

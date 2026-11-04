@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import vm from "node:vm";
 import * as push from "../lib/push.mjs";
+import { scrub } from "../lib/status.mjs";
 
 const keyOf = (fill) => Buffer.from([4, ...new Array(64).fill(fill)]).toString("base64url");
 const KEY_A = keyOf(1);
@@ -305,12 +306,29 @@ test("worker: the went-quiet push as the PCs send it shows as sent", async () =>
   assert.equal(w.shown[0].options.body, "Gym list: no word from ZBook since 01:52 (it may be off or crashed)");
 });
 
-test("worker: an unreadable push still shows something", async () => {
+test("worker: an unreadable push, or a kind it doesn't know, still shows something but never says needs you", async () => {
   const w = loadWorker();
   await w.fire("push", { data: { json: () => { throw new Error("bad"); } } });
   await w.fire("push", { data: null });
-  assert.deepEqual(w.shown.map((n) => n.title), ["A PC needs you", "A PC needs you"]);
-  assert.ok(w.shown.every((n) => n.options.body.length > 5));
+  await w.fire("push", pushEvent({ ...base, kind: "paused" }));
+  assert.deepEqual(w.shown.map((n) => [n.title, n.options.body]), [
+    ["Let Me Know", "Open Let Me Know to see what's new"],
+    ["Let Me Know", "Open Let Me Know to see what's new"],
+    ["News from ZBook", "Gym list: open Let Me Know to see what's new"],
+  ]);
+  assert.ok(w.shown.every((n) => !/needs you/i.test(n.title + n.options.body)));
+});
+
+test("worker: email and IP addresses are masked in what an alert shows, as in the app", async () => {
+  const w = loadWorker();
+  await w.fire("push", pushEvent({ ...base, kind: "needs_you", title: "ZBook needs you (jo.bloggs@example.com)",
+    body: "Gym list: the form said ann.lee@mail.co.uk is in use, from 192.168.1.20 and fe80:0:0:0:1:2:3:4",
+    task_name: "x@y.com list" }));
+  await w.fire("push", pushEvent({ ...base, kind: "finished", task_name: "Mail sam@ex.org" }));
+  const [a, b] = w.shown;
+  assert.equal(a.title, "ZBook needs you ([email])");
+  assert.equal(a.options.body, "Gym list: the form said [email] is in use, from [address] and [address]");
+  assert.equal(b.options.body, "Mail [email]: done");
 });
 
 test("worker: a tap opens the app on that PC and task, or tells the open window", async () => {
@@ -335,4 +353,87 @@ test("worker: an alert arriving tells an open app to refresh", async () => {
   const w = loadWorker({ windows: [{ postMessage: (m) => posted.push(JSON.parse(JSON.stringify(m))) }] });
   await w.fire("push", pushEvent({ ...base, kind: "finished" }));
   assert.deepEqual(posted, [{ type: "refresh" }]);
+});
+
+test("worker: its mask is the app's own, character for character", () => {
+  const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+  const st = readFileSync(new URL("../lib/status.mjs", import.meta.url), "utf8");
+  const body = (s) => /function scrub\(s\) \{([\s\S]*?)\n\}/.exec(s)[1].trim();
+  assert.equal(body(sw), body(st));
+  assert.equal(scrub("a@b.co 10.0.0.1"), "[email] [address]");
+});
+
+// ---------- Inside the tap, and PCs that dropped the subscription ----------
+
+test("the tap asks for permission and subscribes before any await when the key is known", () => {
+  let asked = 0;
+  const N = { permission: "default", requestPermission: () => (asked++, Promise.resolve("granted")) };
+  const reg = fakeReg();
+  const t = push.startInTap({ N, reg, key: KEY_A });
+  assert.equal(asked, 1); // both started synchronously, inside the tap
+  assert.equal(reg.subscribed, 1);
+  assert.ok(t.asked instanceof Promise && t.subscribed instanceof Promise);
+});
+
+test("the very first PC's tap only asks (its key comes with the pairing); blocked or refused never throws", async () => {
+  let asked = 0;
+  const N = { permission: "default", requestPermission: () => (asked++, Promise.resolve("granted")) };
+  const reg = fakeReg();
+  const t = push.startInTap({ N, reg, key: "" });
+  assert.equal(asked, 1);
+  assert.equal(reg.subscribed, 0);
+  assert.equal(await t.subscribed, null);
+  const blocked = push.startInTap({ N: { permission: "denied" }, reg, key: KEY_A });
+  assert.equal(reg.subscribed, 0);
+  assert.equal(await blocked.asked, "denied");
+  const refused = push.startInTap({ N: { permission: "granted" }, reg: fakeReg({ failSubscribe: true }), key: KEY_A });
+  assert.equal(await refused.subscribed, null);
+  const throws = { pushManager: { subscribe() { throw new Error("sync"); } } };
+  assert.equal(await push.startInTap({ N: { permission: "granted" }, reg: throws, key: KEY_A }).subscribed, null);
+});
+
+test("after a tap-time subscribe, pairing sends that same subscription without making another", async () => {
+  const reg = fakeReg();
+  const t = push.startInTap({ N: { permission: "granted" }, reg, key: KEY_A });
+  await t.subscribed;
+  const { calls, setMe } = recorder();
+  await push.keepAlertsOn({ permission: "granted", reg, pcs: fakePcs(KEY_A, KEY_A), setMe });
+  assert.equal(reg.subscribed, 1);
+  assert.deepEqual(calls.map(([, e]) => e), ["https://web.push.apple.com/sub1", "https://web.push.apple.com/sub1"]);
+});
+
+test("on open, a PC whose device list shows push:false for this phone is sent the subscription again", async () => {
+  const sub = { endpoint: "https://web.push.apple.com/s", key: Buffer.from(KEY_A, "base64url") };
+  const reg = fakeReg({ sub });
+  const pcs = fakePcs(KEY_A, KEY_A, KEY_A).map((p) => ({ ...p, pushEndpoint: sub.endpoint }));
+  const lists = {
+    "smu:pc0": { devices: [{ id: "d1", me: true, push: false }, { id: "d2", me: false, push: true }] }, // dropped
+    "smu:pc1": { devices: [{ id: "d3", me: true, push: true }] }, // still has it
+  };
+  const devices = async (pc) => {
+    if (!lists[pc.key]) throw Object.assign(new Error("offline"), { kind: "offline" }); // pc2 doesn't answer
+    return lists[pc.key];
+  };
+  const { calls, setMe } = recorder();
+  const r = await push.keepAlertsOn({ permission: "granted", reg, pcs, setMe, devices });
+  assert.deepEqual(calls, [["smu:pc0", sub.endpoint]]);
+  assert.deepEqual(r.patches, [["smu:pc0", { pushEndpoint: sub.endpoint }]]);
+  assert.equal(reg.subscribed, 0);
+  // Without the check (the once-a-minute resync passes no `devices`), no PC is asked and nothing is sent.
+  const quiet = recorder();
+  await push.keepAlertsOn({ permission: "granted", reg, pcs, setMe: quiet.setMe });
+  assert.deepEqual(quiet.calls, []);
+  assert.deepEqual(await push.forgotten(pcs, "", devices), []);
+  assert.deepEqual(await push.forgotten(pcs, sub.endpoint, null), []);
+});
+
+test("not granted: the open-time check doesn't subscribe or ask the PCs", async () => {
+  const reg = fakeReg();
+  let asked = 0;
+  const devices = async () => (asked++, { devices: [] });
+  const { calls, setMe } = recorder();
+  await push.keepAlertsOn({ permission: "default", reg, pcs: fakePcs(KEY_A), setMe, devices });
+  assert.equal(reg.subscribed, 0);
+  assert.equal(asked, 0);
+  assert.deepEqual(calls, []);
 });
