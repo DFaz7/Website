@@ -127,7 +127,33 @@ SMU's existing `status_view()` plus `"app"` and `"protocol"`:
 - `recent`: the last problems on this task, newest first, **at most 5**: `{"at": ISO, "result": "failed" |
   "skipped", "reason": "<sentence, at most 200>"}`.
 
-#### Privacy rule for every text field (`needs_you_reason`, `detail.*`)
+#### Optional top-level `quefix` (TabGod only)
+
+TabGod's window order check (QueFix), for `"app":"tabgod"` only (the phone ignores it from any other app):
+```json
+"quefix": {"live": true, "scanned_at": "2026-11-04T01:12:31+00:00", "windows": 24, "desktops": 3,
+           "in_order": false, "out_of_order_count": 2, "out_of_order": [{"first": "7", "then": "3"}], "near_count": 1,
+           "rows": [{"rank": 1, "name": "Milo (10)", "position": "842", "bar": false, "sure": true, "near": true,
+                     "desktop": 2}]}
+```
+- Present only while live mode is on, or for 10 minutes after a manual scan; absent otherwise (the phone then shows
+  no QueFix line).
+- `rows`: sorted by `rank`, at most 100. `name`: the profile, already privacy-scrubbed by the PC, never a window
+  title; `"Window <rank>"` when unknown. `position`: display text, `"1,204"` or `"64%"` when `bar` is true.
+  `sure`: false when the read is uncertain. `near`: true when the profile is near the front (above 90 %, or under
+  1,000 in the queue); `near_count` counts them. `desktop`: the virtual desktop number, or null.
+- `out_of_order`: at most 5 pairs, `first` should be before `then`; `out_of_order_count` is the full count.
+- The phone shows a line on that PC's card ("QueFix live · 24 windows · all in order", "2 near front" in green,
+  "2 out of order" as a warning, with "scanned N s ago" from `scanned_at`); tapping it shows the pairs ("7 should be
+  before 3") and then the plain list: profile and queue position per window, in rank order, near-front rows marked
+  "near front" in green. It masks email and IP addresses again.
+- Push: a QueFix problem is a `needs_you` push with `"task":"quefix"`, `"task_name":"QueFix"`,
+  body `"QueFix: 7 should be before 3"`; tapping it opens the QueFix list.
+- Push: profiles that newly crossed into near the front send one `queue` push per scan (see Push), e.g. title
+  `"Profile 10 is near the front"`, body `"Queue 842 · QueFix on Mini 1"`, or for several: title
+  `"3 profiles near the front"`, body `"10: 842 · 7: 93% · 3: 990"`; tapping it opens the QueFix list.
+
+#### Privacy rule for every text field (`needs_you_reason`, `detail.*`, `quefix.rows[].name`)
 
 Before anything leaves the PC, every text is stripped of the person's own values: their names, email addresses,
 phone numbers, date of birth, postal address and passwords, matched against the person's record being filled
@@ -146,8 +172,9 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
   (PKCS#8 PEM). Backup: `C:\Users\danie\OneDrive\Desktop\App's\Signing Keys\LetMeKnow\vapid_private.pem` +
   `SOURCE.txt`. On start: if one side is missing copy it from the other; if both are missing make it once (and
   write both); if they differ, stop pushing and say so in Settings. Never commit, log or print it.
-- Headers: `TTL: 3600` (needs_you) or `86400` (others), `Urgency: high` for needs_you and for a went-quiet stop (`kind: "stopped"`, `reason: "quiet"`) else `normal`,
-  `Topic: <app>-<task id>` (newest replaces an undelivered older one; Topic allows only URL-safe base64
+- Headers: `TTL: 3600` (needs_you, queue) or `86400` (others), `Urgency: high` for needs_you, queue and a
+  went-quiet stop (`kind: "stopped"`, `reason: "quiet"`) else `normal`, `Topic: <app>-<task id>`
+  (`tabgod-qf-near` for queue; newest replaces an undelivered older one; Topic allows only URL-safe base64
   characters, at most 32).
 - Payload (JSON, UTF-8, under 1 KB):
 ```json
@@ -155,7 +182,8 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
  "task":"t1","task_name":"Gym list","title":"ZBook needs you","body":"Gym list: A question",
  "at":"2026-11-01T00:12:31+00:00"}
 ```
-  `kind`: `needs_you` | `finished` | `failed` | `stopped` | `test`. `title`/`body` are what the phone shows; the
+  `kind`: `needs_you` | `finished` | `failed` | `stopped` | `queue` | `test`. `queue` is TabGod's QueFix near-front
+  alert (`"Topic":"tabgod-qf-near"`, no `task` needed: the phone opens the QueFix list). `title`/`body` are what the phone shows; the
   phone falls back to its own words when they are missing. Optional `reason`: `"quiet"` on a `stopped` push sent
   when a PC went quiet mid-run (it may be off or crashed), e.g. title `ZBook went quiet`, body
   `Gym list: no word from ZBook since 01:52 (it may be off or crashed)`; other reasons are ignored. Tapping an alert
