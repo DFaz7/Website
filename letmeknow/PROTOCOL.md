@@ -1,4 +1,8 @@
-# Let Me Know - PC protocol (version 1)
+# Let Me Know - PC protocol (version 1.1)
+
+Version 1.1 adds answers from the phone (`detail.question`, the push's `question`/`answers`, `POST /v1/answer`).
+Every addition is optional, so `/v1/hello` and `/v1/status` still say `"protocol":1`: a PC that sends no question
+works as before, and the phone then shows no answer buttons.
 
 What SMU and TabGod implement on each PC so the Let Me Know web app (`https://dmftrading.co.uk/letmeknow/`) can
 show their status and get alerts. `dev/mock_pc.py` implements all of it with fake data.
@@ -126,6 +130,29 @@ SMU's existing `status_view()` plus `"app"` and `"protocol"`:
   own sentence for the app and kind.
 - `recent`: the last problems on this task, newest first, **at most 5**: `{"at": ISO, "result": "failed" |
   "skipped", "reason": "<sentence, at most 200>"}`.
+- `question` (1.1): `{"id": "q_3f9a1c2b7d4e", "answers": ["skip", "do_it", "retry"]}` while this wait can be
+  answered from the phone (see Answers). Left out once it is answered or over.
+
+### `POST /v1/answer` (1.1)
+
+Answers the PC's open question from the phone, exactly as pressing that button on the PC. Request
+`{"question": "q_3f9a1c2b7d4e", "answer": "skip"}`.
+- `answer`: `skip` (Skip this person: that person is marked failed and the run goes on), `do_it` (I'll do it: the PC
+  waits for the owner to do the step at the PC) or `retry` (the PC tries that step again by itself). A question
+  lists the ones it takes, in the order the phone shows them; `retry` only where the wait has a try-again of its own.
+- `question`: `q_` and 4 to 40 of `0-9 A-Z a-z _ -` (SMU: `q_` + 12 hex). A new id for each wait, even the same
+  person stuck on the same step again.
+- 200 `{"ok": true, "answer": "skip", "message": "Skipped"}`. `message` is what the phone shows; when missing it says
+  "Skipped", "SMU is waiting for you at the PC" or "Trying again".
+- Errors, each with a plain `message` the phone shows as it is:
+  - 400 `{"error": "bad request"}`: not that shape.
+  - 422 `{"error": "answer"}`: an answer that isn't one of the three, or one this question doesn't take.
+  - 409 `{"error": "answered"}`: a question takes its first answer only (from this phone or any other).
+  - 409 `{"error": "stale"}`: the question is over (the wait ended, or a newer wait replaced it), or never existed.
+  - 409 `{"error": "refused"}`: the app couldn't do it just now; the question stays open.
+  - 503 `{"error": "busy"}`: the app didn't take it within a few seconds; nothing was done, the question stays open.
+- An app that doesn't take answers answers 404 `{"error":"not found"}` (TabGod today); it never sends a question.
+- Messages follow the privacy rule like every other text.
 
 #### Optional top-level `quefix` (TabGod only)
 
@@ -183,6 +210,10 @@ masks email and IP patterns again as a second guard, but the PC's rule is what k
  "task":"t1","task_name":"Gym list","title":"ZBook needs you","body":"Gym list: A question",
  "at":"2026-11-01T00:12:31+00:00"}
 ```
+  A `needs_you` the phone can answer (1.1) also carries `"question":"q_3f9a1c2b7d4e","answers":["skip","do_it"]`
+  (the same as the task's `detail.question`): the phone shows them as the alert's buttons where the browser can
+  (Android, desktop; the browser shows as many as it can, in order), and on the task's page everywhere (iPhone and
+  iPad show no alert buttons). A button opens the app, which sends `POST /v1/answer` once and shows what came of it.
   `kind`: `needs_you` | `finished` | `failed` | `stopped` | `queue` | `test`. `queue` is TabGod's QueFix near-front
   alert (`"Topic":"tabgod-qf-near"`, no `task` needed: the phone opens the QueFix list). `title`/`body` are what the phone shows; the
   phone falls back to its own words when they are missing. Optional `reason`: `"quiet"` on a `stopped` push sent

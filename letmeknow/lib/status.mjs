@@ -32,6 +32,18 @@ const text = (v, max) => scrub(str(v, max));
 
 const RESULTS = ["failed", "skipped"];
 
+// What the phone can answer a PC's question with (PROTOCOL.md, Answers), in the order the buttons show.
+export const ANSWERS = ["skip", "do_it", "retry"];
+const QUESTION_ID = /^q_[0-9A-Za-z_-]{4,40}$/;
+
+// A question the phone can answer: { id, answers } with only the known answers, each once, in the PC's order;
+// null when there is none or no answer is left.
+export function normalizeQuestion(raw) {
+  if (!raw || typeof raw !== "object" || typeof raw.id !== "string" || !QUESTION_ID.test(raw.id)) return null;
+  const answers = [...new Set(Array.isArray(raw.answers) ? raw.answers : [])].filter((a) => ANSWERS.includes(a));
+  return answers.length ? { id: raw.id, answers } : null;
+}
+
 // The optional `detail` of a task (PROTOCOL.md): null when missing or unusable; at most 5 recent problems, newest first.
 export function normalizeDetail(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -48,6 +60,7 @@ export function normalizeDetail(raw) {
     since: when(raw.since),
     whatToDo: text(raw.what_to_do, 240),
     recent,
+    question: normalizeQuestion(raw.question),
   };
 }
 

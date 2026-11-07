@@ -4,6 +4,7 @@ import * as nav from "./lib/nav.mjs";
 import * as push from "./lib/push.mjs";
 import * as store from "./lib/store.mjs";
 import * as tokens from "./lib/tokens.mjs";
+import { answerFromParams, answerView, resultOf } from "./lib/answer.mjs";
 import { patchChildren } from "./lib/patch.mjs";
 import { startScan } from "./lib/scan.mjs";
 import {
@@ -12,7 +13,7 @@ import {
   reachText, rowTime, scannedText, tailnetSuffix, taskState, whatToDo, whatsWrong, whenText,
 } from "./lib/status.mjs";
 
-export const VERSION = "2.1.1";
+export const VERSION = "2.2.0";
 const POLL_MS = 10_000;
 const RESYNC_MS = 60_000; // a PC that missed the alert subscription is offered it again at most this often
 
@@ -30,6 +31,7 @@ let lastRefresh = 0; // when every PC was last asked
 let rowsById = new Map(); // task row id -> row, for the countdowns between refreshes
 let otherKeys = new Set(); // PCs whose alert key isn't this device's (their alerts can't reach it)
 let lastNeeds = 0;
+const sent = new Map(); // "<pc key>/<task id>" -> the last answer sent for that task: { question, answer, state, text }
 
 // Alerts
 const supported = push.support({
@@ -454,10 +456,27 @@ function renderDetail() {
     nodes.push(group("What to do"));
     const todo = el("div", "card todo");
     todo.append(el("p", null, whatToDo(pc.app, t, device)));
+    // The PC's question, answered from here: the same as pressing the button on the PC (clicks: setupDetail).
+    const av = answerView(t.detail && t.detail.question, sent.get(`${pc.key}/${t.id}`) || null);
+    if (av.buttons.length) {
+      todo.append(el("p", "answer-or", "Or answer from here:"));
+      const row = el("div", "answers");
+      for (const b of av.buttons) {
+        const btn = el("button", `btn ${b.answer === "skip" ? "danger" : b.answer === "do_it" ? "" : "ghost"}`.trim(), b.label);
+        btn.type = "button";
+        btn.dataset.answer = b.answer;
+        btn.dataset.q = t.detail.question.id;
+        row.append(btn);
+      }
+      todo.append(row);
+    }
+    if (av.result) todo.append(el("p", `answer-result ${av.result.state}`, av.result.text));
     nodes.push(todo);
   } else {
     const ok = el("div", "card todo calm");
     ok.append(el("p", null, t.running ? "Nothing needed from you right now. It carries on by itself." : "Nothing needed from you right now."));
+    const av = answerView(null, sent.get(`${pc.key}/${t.id}`) || null); // what came of an answer sent from here
+    if (av.result) ok.append(el("p", `answer-result ${av.result.state}`, av.result.text));
     nodes.push(ok);
   }
 
@@ -538,8 +557,39 @@ function toHome() {
   else if ($("home").hidden) closeSheet();
 }
 
+// ---------- Answering the PC's question from the phone ----------
+
+// Sends one answer (a tap here, or an alert's button) and shows what came of it on that task's detail view. The PC
+// takes a question's first answer only; a second tap while one is on its way does nothing.
+async function sendAnswer(pc, taskId, question, answer) {
+  const key = `${pc.key}/${taskId}`;
+  const was = sent.get(key);
+  if (was && was.question === question && (was.state === "sending" || was.state === "ok")) return;
+  sent.set(key, { question, answer, state: "sending", text: "Sending…" });
+  if (detailOf) renderDetail();
+  let res;
+  try {
+    res = resultOf(answer, { data: await pcApi.answer(pc, question, answer) }, pcName(pc));
+  } catch (e) {
+    res = resultOf(answer, { error: e }, pcName(pc));
+  }
+  sent.set(key, { question, answer, state: res.ok ? "ok" : "error", text: res.text });
+  $("announce").textContent = res.text;
+  render();
+  refresh();
+}
+
+function answerTap(e) {
+  const b = e.target.closest("[data-answer]");
+  if (!b || !detailOf) return;
+  const pc = state.pcs.find((p) => p.key === detailOf.key);
+  if (pc) sendAnswer(pc, detailOf.taskId, b.dataset.q, b.dataset.answer);
+}
+
 function setupDetail() {
   $("detail-back").addEventListener("click", goBack);
+  // One listener for the answer buttons: the view is patched in place every second, so its nodes carry none.
+  $("detail-body").addEventListener("click", answerTap);
   // Back (or forward) lands on an entry: show the screen it names, as it was.
   addEventListener("popstate", (e) => {
     const to = nav.screenFor(e.state, state.pcs.map((p) => p.key));
@@ -576,7 +626,9 @@ function readOpenParams() {
   } catch {
     // the address keeps its query: harmless
   }
-  return { pc: q.get("pc") || "", app: q.get("app") || "", task: q.get("task") || "", until: Date.now() + 30_000 };
+  // An alert's answer button (Skip this person, I'll do it, Retry) adds &q=<question>&answer=<answer>: sent once.
+  return { pc: q.get("pc") || "", app: q.get("app") || "", task: q.get("task") || "", reply: answerFromParams(q),
+    until: Date.now() + 30_000 };
 }
 
 function tryOpen() {
@@ -586,6 +638,11 @@ function tryOpen() {
   if (!pc) {
     pendingOpen = null;
     return;
+  }
+  if (o.reply && o.task) {
+    const { question, answer } = o.reply;
+    o.reply = null;
+    sendAnswer(pc, o.task, question, answer); // the PC says whether the question is still open
   }
   const l = live.get(pc.key);
   // A QueFix alert (task "quefix") opens the QueFix list while TabGod still shows it.
@@ -647,7 +704,7 @@ function authed(fn) {
 }
 const pcApi = {
   status: authed(api.status), setMe: authed(api.setMe), devices: authed(api.devices),
-  removeDevice: authed(api.removeDevice), testPush: authed(api.testPush),
+  removeDevice: authed(api.removeDevice), testPush: authed(api.testPush), answer: authed(api.answer),
 };
 
 async function fetchPc(pc) {
@@ -1309,7 +1366,8 @@ async function setupWorker() {
   navigator.serviceWorker.addEventListener("message", (e) => {
     const d = e.data || {};
     if (d.type === "open" && typeof d.pc === "string") {
-      pendingOpen = { pc: d.pc, app: String(d.app || ""), task: String(d.task || ""), until: Date.now() + 30_000 };
+      const reply = answerFromParams(new URLSearchParams({ q: String(d.question || ""), answer: String(d.answer || "") }));
+      pendingOpen = { pc: d.pc, app: String(d.app || ""), task: String(d.task || ""), reply, until: Date.now() + 30_000 };
       if (!$("add").hidden || !$("settings").hidden) show("home");
       refresh();
     } else if (d.type === "refresh" && state.pcs.length) refresh();

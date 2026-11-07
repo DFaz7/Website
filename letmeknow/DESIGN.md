@@ -20,6 +20,10 @@ owner is needed. Served by GitHub Pages at `https://dmftrading.co.uk/letmeknow/`
   it has waited), "What to do" in plain words (the PC's own sentence, else one for the app and the kind of wait),
   progress (done / failed / left, time left, finish, per person) and the last few problems. Works with today's
   /v1/status and fills in more when a PC sends the optional `detail` (PROTOCOL.md).
+- Answering from the phone: when SMU stops on a wait the phone can answer, its alert carries buttons (Skip this
+  person, I'll do it, and Retry where it fits) on Android and desktop, and the task's "What to do" card shows the
+  same buttons everywhere (iPhone/iPad alerts have no buttons). A tap sends the answer once (`POST /v1/answer`), and
+  the card says what came of it: "Skipped", "SMU is waiting for you at the PC", or the PC's plain reason why not.
 - Each PC's last answer is kept, so the list shows at once on open (as "Checking…" until the PC answers).
 - Push alerts whenever an app needs the owner (both AIs couldn't do a step, a question, a stuck profile, IWM's own
   problems via SMU), and when a run finishes or stops or a PC goes quiet mid-run. Alerts turn on as a phone pairs:
