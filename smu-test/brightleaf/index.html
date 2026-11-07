@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Create your Brightleaf account</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f3f8f2;color:#1b2b1e;min-height:100vh;display:flex;flex-direction:column}
+header{padding:20px 32px;font-weight:800;font-size:22px;color:#1f7a3a;letter-spacing:-.5px}header span{color:#8bc34a}
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#fff;width:100%;max-width:420px;padding:36px 32px;border-radius:16px;box-shadow:0 10px 40px rgba(31,122,58,.12)}
+h1{margin:0 0 4px;font-size:26px}p.sub{margin:0 0 24px;color:#5b6b5e}
+label{display:block;font-weight:600;font-size:14px;margin:16px 0 6px}
+input{width:100%;padding:12px 14px;font:inherit;border:1.5px solid #cfdccf;border-radius:10px;background:#fff}
+input:focus{outline:none;border-color:#1f7a3a;box-shadow:0 0 0 3px rgba(31,122,58,.18)}
+input.bad{border-color:#c62828}.err{color:#c62828;font-size:13px;min-height:18px;margin-top:4px}
+.row{display:flex;gap:12px}.row>div{flex:1}
+button{margin-top:22px;width:100%;padding:13px;border:0;border-radius:10px;background:#1f7a3a;color:#fff;font:700 16px inherit;cursor:pointer}
+button:hover{background:#17612e}footer{text-align:center;padding:20px;color:#7a8a7d;font-size:13px}
+.hint{font-size:12px;color:#7a8a7d}
+</style></head><body>
+<header>Bright<span>leaf</span></header>
+<main><form class="card" id="f" novalidate>
+<h1>Create your account</h1><p class="sub">Plan your garden in minutes. Free for 30 days.</p>
+<div class="row"><div><label for="first">First name</label><input id="first" name="first" autocomplete="given-name"><div class="err" data-for="first"></div></div>
+<div><label for="last">Last name</label><input id="last" name="last" autocomplete="family-name"><div class="err" data-for="last"></div></div></div>
+<label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email"><div class="err" data-for="email"></div>
+<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password"><div class="hint">At least 8 characters, with a letter and a number.</div><div class="err" data-for="password"></div>
+<button type="submit">Sign up</button></form></main>
+<footer>&copy; Brightleaf Gardens Ltd. A demo site: nothing you type is sent or saved.</footer>
+<script>
+const f=document.getElementById('f');
+const rules={
+first:v=>v.trim()?'':'Enter your first name',
+last:v=>v.trim()?'':'Enter your last name',
+email:v=>!v.trim()?'Enter your email address':/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())?'':'Enter a valid email address',
+password:v=>!v?'Choose a password':v.length<8?'Password must be at least 8 characters':!/[A-Za-z]/.test(v)||!/\d/.test(v)?'Password needs a letter and a number':''};
+function check(n){const el=f.elements[n],m=rules[n](el.value);f.querySelector('[data-for='+n+']').textContent=m;el.classList.toggle('bad',!!m);return !m}
+Object.keys(rules).forEach(n=>f.elements[n].addEventListener('blur',()=>check(n)));
+f.addEventListener('submit',e=>{e.preventDefault();const ok=Object.keys(rules).map(check).every(Boolean);if(ok)location.href='welcome.html';else f.querySelector('.bad').focus()});
+</script></body></html>
