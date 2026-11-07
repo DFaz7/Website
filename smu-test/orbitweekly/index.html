@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Orbit Weekly - the space newsletter</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;color:#ece9ff;background:radial-gradient(1200px 600px at 80% -10%,#3b2a8f 0%,transparent 60%),#0f0c24;display:flex;flex-direction:column}
+nav{padding:22px 40px;display:flex;justify-content:space-between;align-items:center}.logo{font-size:24px;font-weight:800;letter-spacing:-.5px}.logo b{color:#9d85ff}
+nav span{color:#8c88b3;font-size:14px}
+main{flex:1;display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:center;max-width:1040px;width:100%;margin:0 auto;padding:24px}
+.pitch h1{font-size:48px;line-height:1.05;margin:0 0 16px;letter-spacing:-1.5px}.pitch h1 em{font-style:normal;color:#9d85ff}.pitch p{color:#b4b0d6;font-size:18px;max-width:420px}
+.card{background:#181438;border:1px solid #2c2760;border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.card h2{margin:0 0 4px}.card p.s{margin:0 0 12px;color:#9a96c2;font-size:14px}
+label.t{display:block;font-size:13px;color:#b4b0d6;margin:14px 0 6px}
+input[type=text],input[type=email]{width:100%;padding:12px 14px;font:inherit;color:#fff;background:#0f0c24;border:1.5px solid #342e70;border-radius:12px}
+input:focus{outline:none;border-color:#9d85ff;box-shadow:0 0 0 3px rgba(157,133,255,.25)}input.bad{border-color:#ff6b81}
+.err{color:#ff8a9b;font-size:13px;min-height:18px;margin-top:3px}
+.topics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.topics label,.freq label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #342e70;border-radius:10px;cursor:pointer;font-size:14px}
+.topics label:has(input:checked),.freq label:has(input:checked){border-color:#9d85ff;background:#221c52}
+.freq{display:flex;gap:8px;flex-wrap:wrap}.freq label{flex:1;justify-content:center}
+button.go{width:100%;margin-top:18px;padding:14px;border:0;border-radius:12px;font:700 16px "Segoe UI",system-ui,sans-serif;color:#fff;background:linear-gradient(90deg,#6c47ff,#a14bff);cursor:pointer}
+button.go:disabled{opacity:.6;cursor:wait}
+.done{text-align:center;padding:12px 0}.done .ic{width:64px;height:64px;border-radius:50%;background:#2a2470;display:grid;place-items:center;font-size:30px;margin:0 auto 14px;color:#b9a8ff}
+footer{text-align:center;color:#6f6b9a;font-size:13px;padding:20px}[hidden]{display:none!important}
+@media(max-width:820px){main{grid-template-columns:1fr;gap:24px}.pitch h1{font-size:34px}nav{padding:16px 20px}}
+</style></head><body><nav><div class="logo">Orbit <b>Weekly</b></div><span>Free newsletter</span></nav>
+<main><div class="pitch"><h1>The week in space, <em>in five minutes</em>.</h1><p>Launches, discoveries and the best photos from orbit, every week. Join 40,000 curious readers.</p></div>
+<form class="card" id="f" novalidate><div id="form"><h2>Subscribe</h2><p class="s">Free. Unsubscribe any time.</p>
+<label class="t" for="name">First name</label><input type="text" id="name" autocomplete="given-name"><div class="err" data-for="name"></div>
+<label class="t" for="email">Email address</label><input type="email" id="email" autocomplete="email"><div class="err" data-for="email"></div>
+<label class="t">What do you want to read about?</label>
+<div class="topics"><label><input type="checkbox" name="topic" value="Launches"> Launches</label><label><input type="checkbox" name="topic" value="Astronomy"> Astronomy</label><label><input type="checkbox" name="topic" value="Mars"> Mars</label><label><input type="checkbox" name="topic" value="Space tech"> Space tech</label></div><div class="err" data-for="topic"></div>
+<label class="t">How often?</label>
+<div class="freq"><label><input type="radio" name="freq" value="Weekly" checked> Weekly</label><label><input type="radio" name="freq" value="Monthly"> Monthly</label></div>
+<div class="err" id="top"></div><button class="go" type="submit" id="b">Subscribe</button></div>
+<div class="done" id="ok" hidden><div class="ic">&#9993;</div><h2>Check your inbox to confirm</h2><p class="s">We have sent you a link. Open it and press the button to finish subscribing. The link works for one hour.</p></div></form></main>
+<footer>&copy; Orbit Weekly Media. A demo site: your details are used once to send one email and are not kept.</footer>
+<script>
+const API='https://signup-mail.dmftrading.workers.dev';
+const $=id=>document.getElementById(id);
+const rules={name:v=>v.trim()?'':'Enter your first name',email:v=>!v.trim()?'Enter your email address':/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())?'':'Enter a valid email address'};
+const check=n=>{const m=rules[n]($(n).value);document.querySelector('[data-for='+n+']').textContent=m;$(n).classList.toggle('bad',!!m);return !m};
+Object.keys(rules).forEach(n=>$(n).addEventListener('blur',()=>check(n)));
+$('f').addEventListener('submit',async e=>{e.preventDefault();$('top').textContent='';
+let ok=Object.keys(rules).map(check).every(Boolean);
+const topics=[...document.querySelectorAll('input[name=topic]:checked')].map(x=>x.value);
+document.querySelector('[data-for=topic]').textContent=topics.length?'':'Pick at least one topic';ok=ok&&topics.length>0;if(!ok)return;
+$('b').disabled=true;$('b').textContent='Sending...';
+try{const r=await fetch(API+'/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'news',name:$('name').value,email:$('email').value,detail:topics.join(', ')+' - '+document.querySelector('input[name=freq]:checked').value})});
+const j=await r.json();if(r.ok){$('form').hidden=true;$('ok').hidden=false}else{$('top').textContent=j.error||'Something went wrong.'}}
+catch{$('top').textContent='Could not reach the server. Try again.'}
+$('b').disabled=false;$('b').textContent='Subscribe'});
+</script></body></html>

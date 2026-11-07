@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Join Tidewell Travel Club</title>
+<meta name="robots" content="noindex,nofollow"><title>Saltmarsh Food Festival - book tickets</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 Georgia,"Times New Roman",serif;color:#10243f;background:#fff;min-height:100vh;display:flex}
 .hero{flex:1;background:linear-gradient(160deg,#0b2a4a 0%,#0e5a7a 55%,#f08a5d 130%);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between}
@@ -17,27 +17,35 @@ input:focus,select:focus{outline:none;border-color:#0e5a7a;box-shadow:0 0 0 3px 
 .dob{display:grid;grid-template-columns:1fr 1.4fr 1.1fr;gap:10px}
 .terms{height:130px;overflow:auto;border:1.5px solid #c9d6e2;border-radius:8px;padding:12px;font-size:13px;color:#42566d;background:#f8fafc}
 .chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-weight:400}.chk input{width:auto;margin-top:4px}
+.opts{display:grid;gap:8px}.opt{display:flex;align-items:center;gap:12px;margin:0;padding:12px;border:1.5px solid #c9d6e2;border-radius:8px;font-weight:400;cursor:pointer}.opt input{width:auto}.opt span{flex:1}.opt small{display:block;color:#6b7f95}.opt em{font-style:normal;font-weight:700}.opt:has(input:checked){border-color:#0e5a7a;background:#eef6fa}
 .chk.off{opacity:.45}.note{font-size:12px;color:#6b7f95;margin-top:6px}
 .nav{display:flex;gap:12px;margin-top:24px}.nav button{flex:1;padding:13px;border-radius:8px;font:700 16px system-ui,sans-serif;cursor:pointer;border:0}
 .next,.go{background:#0e5a7a;color:#fff}.next:hover,.go:hover{background:#0a4660}.back{background:#e8eef4;color:#10243f}
 button:disabled{background:#b9c4ce!important;cursor:not-allowed}[hidden]{display:none!important}
 @media(max-width:800px){body{flex-direction:column}.hero{padding:24px;flex:none}.hero h2{font-size:24px}.hero p{display:none}}
 </style></head><body>
-<section class="hero"><div class="logo">Tidewell<small>Travel Club</small></div><div><h2>Quiet coasts. Better fares. Members only.</h2><p>Join free and get early access to small-group trips and member prices.</p></div><div style="font-size:12px;opacity:.7;font-family:system-ui">Demo site. Nothing you type is sent or saved.</div></section>
+<section class="hero"><div class="logo">Saltmarsh<small>Food Festival</small></div><div><h2>Two days of sea air, street food and live music.</h2><p>5 and 6 June 2027 on Saltmarsh Quay. Pick your day and book your tickets.</p></div><div style="font-size:12px;opacity:.7;font-family:system-ui">Demo site. Your details are used once to send one email and are not kept.</div></section>
 <section class="pane"><form id="f" novalidate>
 <div class="steps"><i class="on"></i><i></i><i></i></div><div class="stepname" id="sn">Step 1 of 3 &middot; Your details</div>
-<fieldset class="on" data-s="0"><h1>Let us get started</h1>
+<fieldset class="on" data-s="0"><h1>Choose your tickets</h1>
+<label for="dt">Date</label><select id="dt"><option value="">Select a date</option><option>Saturday 5 June 2027</option><option>Sunday 6 June 2027</option><option>Both days</option></select><div class="err" data-for="dt"></div>
+<label>Ticket type</label>
+<div class="opts" id="tt">
+<label class="opt"><input type="radio" name="tt" value="Day pass"><span><b>Day pass</b><small>Entry and a festival tote bag</small></span><em>&pound;25</em></label>
+<label class="opt"><input type="radio" name="tt" value="Tasting pass"><span><b>Tasting pass</b><small>Entry plus 6 tasting tokens</small></span><em>&pound;40</em></label>
+<label class="opt"><input type="radio" name="tt" value="VIP table"><span><b>VIP table</b><small>Reserved seat and chef's talk</small></span><em>&pound;65</em></label></div><div class="err" data-for="tt"></div>
+<label for="qty">Number of tickets</label><select id="qty"><option value="">Select</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select><div class="err" data-for="qty"></div></fieldset>
+<fieldset data-s="1"><h1>Attendee details</h1>
 <label for="fn">First name</label><input id="fn" autocomplete="given-name"><div class="err" data-for="fn"></div>
 <label for="ln">Last name</label><input id="ln" autocomplete="family-name"><div class="err" data-for="ln"></div>
-<label for="em">Email</label><input id="em" type="email" autocomplete="email"><div class="err" data-for="em"></div></fieldset>
-<fieldset data-s="1"><h1>About you</h1>
+<label for="em">Email</label><input id="em" type="email" autocomplete="email"><div class="err" data-for="em"></div>
 <label for="co">Country</label><select id="co"><option value="">Select a country</option></select><div class="err" data-for="co"></div>
 <label>Date of birth</label><div class="dob"><select id="dd" aria-label="Day"><option value="">Day</option></select><select id="mm" aria-label="Month"><option value="">Month</option></select><select id="yy" aria-label="Year"><option value="">Year</option></select></div><div class="err" data-for="dob"></div>
 <label for="ph">Phone number</label><input id="ph" type="tel" autocomplete="tel" placeholder="+44 7700 900123"><div class="err" data-for="ph"></div></fieldset>
-<fieldset data-s="2"><h1>Membership terms</h1>
+<fieldset data-s="2"><h1>Booking terms</h1>
 <div class="terms" id="terms" tabindex="0"></div><div class="note" id="tn">Scroll to the bottom of the terms to continue.</div>
-<label class="chk off" id="cl"><input type="checkbox" id="ag" disabled><span>I have read and agree to the Tidewell membership terms</span></label><div class="err" data-for="ag"></div></fieldset>
-<div class="nav"><button type="button" class="back" id="bk" hidden>Back</button><button type="button" class="next" id="nx">Next</button><button type="submit" class="go" id="go" hidden disabled>Join Tidewell</button></div>
+<label class="chk off" id="cl"><input type="checkbox" id="ag" disabled><span>I have read and agree to the Saltmarsh booking terms</span></label><div class="err" data-for="ag"></div><div class="err" id="ag-err"></div></fieldset>
+<div class="nav"><button type="button" class="back" id="bk" hidden>Back</button><button type="button" class="next" id="nx">Next</button><button type="submit" class="go" id="go" hidden disabled>Book tickets</button></div>
 </form></section>
 <script>
 const $=id=>document.getElementById(id);let step=0;
@@ -45,24 +53,33 @@ const $=id=>document.getElementById(id);let step=0;
 for(let i=1;i<=31;i++)$('dd').add(new Option(i,i));
 ['January','February','March','April','May','June','July','August','September','October','November','December'].forEach((m,i)=>$('mm').add(new Option(m,i+1)));
 for(let y=new Date().getFullYear()-16;y>=1920;y--)$('yy').add(new Option(y,y));
-$('terms').innerHTML=Array.from({length:14},(_,i)=>'<p><b>'+(i+1)+'.</b> Members agree to travel responsibly, respect local communities and keep their booking details up to date. This is sample text for a demo form.</p>').join('');
+$('terms').innerHTML=Array.from({length:14},(_,i)=>'<p><b>'+(i+1)+'.</b> Ticket holders agree to follow venue rules, keep their ticket safe and arrive on the day they booked. This is sample text for a demo form.</p>').join('');
 $('terms').addEventListener('scroll',()=>{const t=$('terms');if(t.scrollTop+t.clientHeight>=t.scrollHeight-4){$('ag').disabled=false;$('cl').classList.remove('off');$('tn').textContent='Thanks, you can now accept the terms.'}});
 const msg=(n,m)=>{document.querySelector('[data-for='+n+']').textContent=m;const el=$(n);if(el)el.classList.toggle('bad',!!m);return !m};
 function validate(s){let ok=true;
-if(s==0){ok=msg('fn',$('fn').value.trim()?'':'Enter your first name')&ok;ok=msg('ln',$('ln').value.trim()?'':'Enter your last name')&ok;
-const e=$('em').value.trim();ok=msg('em',!e?'Enter your email address':/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)?'':'Enter a valid email address')&ok}
-if(s==1){ok=msg('co',$('co').value?'':'Choose your country')&ok;
+if(s==0){ok=msg('dt',$('dt').value?'':'Choose a date')&ok;
+const tt=document.querySelector('input[name=tt]:checked');document.querySelector('[data-for=tt]').textContent=tt?'':'Choose a ticket type';ok=!!tt&ok;
+ok=msg('qty',$('qty').value?'':'Choose how many tickets')&ok}
+if(s==1){ok=msg('fn',$('fn').value.trim()?'':'Enter your first name')&ok;ok=msg('ln',$('ln').value.trim()?'':'Enter your last name')&ok;
+const e=$('em').value.trim();ok=msg('em',!e?'Enter your email address':/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)?'':'Enter a valid email address')&ok;
+ok=msg('co',$('co').value?'':'Choose your country')&ok;
 let m='';const d=+$('dd').value,mo=+$('mm').value,y=+$('yy').value;if(!d||!mo||!y)m='Select your full date of birth';else{const t=new Date(y,mo-1,d);if(t.getDate()!=d)m='That date does not exist'}
 document.querySelector('[data-for=dob]').textContent=m;['dd','mm','yy'].forEach(i=>$(i).classList.toggle('bad',!!m));ok=!m&ok;
 const p=$('ph').value.replace(/[\s()-]/g,'');ok=msg('ph',!p?'Enter your phone number':/^\+?\d{7,15}$/.test(p)?'':'Enter a valid phone number')&ok}
-if(s==2){ok=msg('ag',$('ag').checked?'':'You must accept the terms to join')&ok}
+if(s==2){ok=msg('ag',$('ag').checked?'':'You must accept the terms to book')&ok}
 return !!ok}
-const names=['Your details','About you','Terms'];
+const names=['Tickets','Attendee details','Terms'];
 function show(){document.querySelectorAll('fieldset').forEach(x=>x.classList.toggle('on',+x.dataset.s===step));
 document.querySelectorAll('.steps i').forEach((x,i)=>x.classList.toggle('on',i<=step));$('sn').textContent='Step '+(step+1)+' of 3 · '+names[step];
 $('bk').hidden=step==0;$('nx').hidden=step==2;$('go').hidden=step!=2}
 $('nx').onclick=()=>{if(validate(step)){step++;show()}};$('bk').onclick=()=>{step--;show()};
 $('ag').onchange=()=>{$('go').disabled=!$('ag').checked};
-$('f').addEventListener('submit',e=>{e.preventDefault();if(!$('go').disabled&&validate(2))location.href='thanks.html'});
+const API='https://signup-mail.dmftrading.workers.dev';
+$('f').addEventListener('submit',async e=>{e.preventDefault();if($('go').disabled||!validate(2))return;
+$('go').disabled=true;$('go').textContent='Booking...';
+const detail=$('dt').value+', '+document.querySelector('input[name=tt]:checked').value+' x '+$('qty').value;
+try{const r=await fetch(API+'/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'event',name:$('fn').value,email:$('em').value,detail})});const j=await r.json();
+if(r.ok){location.href='thanks.html';return}$('ag-err').textContent=j.error||'Something went wrong.'}catch{$('ag-err').textContent='Could not reach the server. Try again.'}
+$('go').disabled=false;$('go').textContent='Book tickets'});
 $('f').addEventListener('keydown',e=>{if(e.key==='Enter'&&step<2){e.preventDefault();$('nx').click()}});
 </script></body></html>
