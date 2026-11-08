@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Nova K - Lisbon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#090909;font:400 16px/1.5 "Space Mono",ui-monospace,Menlo,Consolas,monospace}
+main{min-height:100vh;max-width:1024px;margin:0 auto;display:flex;align-items:center;justify-content:center;padding:48px 24px;border-left:2px solid #090909;border-right:2px solid #090909}
+.col{width:100%;max-width:512px}
+.top{margin:0 0 28px;font-size:14px;font-weight:700;text-transform:uppercase}
+h1{margin:0;font-size:60px;line-height:1;font-weight:700;text-transform:uppercase}
+h2{margin:8px 0 0;font-size:30px;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:-.05em}
+.venue{margin:10px 0 28px;font-size:21.6px;text-transform:uppercase;letter-spacing:-.05em}
+#msg{display:flex;gap:10px;align-items:flex-start;font-size:15px}
+#msg svg{flex:none;width:22px;height:22px;margin-top:2px}
+.state h3{margin:0 0 6px;font-size:20px;text-transform:uppercase}.state p{margin:0}
+.back{display:inline-block;margin-top:18px;padding:12px 18px;border-radius:8px;background:#000;color:#fff;font-weight:700;text-transform:uppercase;text-decoration:none}
+.foot{margin-top:40px;font-size:12px;color:#777}
+[hidden]{display:none!important}
+@media(max-width:768px){main{border:0;padding:24px}h1{font-size:48px}h2{font-size:24px}.venue{font-size:18px}}
+</style></head><body>
+<main><div class="col">
+<p class="top">Nova K - Lisbon</p>
+<h1>Nova K</h1><h2>Live in Lisbon</h2><p class="venue">Est&aacute;dio do Mar</p>
+<div id="wait" class="state"><p>Checking your link...</p></div>
+<div id="done" class="state" hidden><div id="msg"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg><div><h3>Email verified</h3><p>You're registered for early access to Nova K - Live in Lisbon. We'll email you before tickets go on sale.</p></div></div></div>
+<div id="gone" class="state" hidden><h3>This link has expired</h3><p>Verify links work for one hour and only once. Go back to the sign-up page to get a new one.</p><a class="back" href="index.html">Back to sign up</a></div>
+<p class="foot">Test site for SMU. Nothing you enter is stored. Your details are used once to send one email with a link.</p>
+</div></main>
+<script>
+// Talks to the mail worker: it checks the link and uses it up. Nothing is kept.
+const API='https://signup-mail.dmftrading.workers.dev/api/step/prereg/';
+const $=id=>document.getElementById(id);
+const show=id=>{for(const x of['wait','done','gone'])$(x).hidden=x!==id};
+const token=new URLSearchParams(location.search).get('t')||'';
+const url=API+encodeURIComponent(token);
+if(!/^[A-Za-z0-9_-]{20,64}$/.test(token))show('gone');
+else fetch(url).then(r=>r.ok?fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}):r).then(r=>show(r.ok?'done':'gone')).catch(()=>{$('wait').innerHTML='<p>Could not reach the server. Try again.</p>'});
+</script></body></html>

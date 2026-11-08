@@ -57,7 +57,7 @@ input:focus,select:focus{outline:none;background:#f3f3f3}
 <button type="submit" class="go" id="go"><span id="bt" data-t="go">Sign Up</span></button>
 </form>
 <div id="msg" aria-live="polite" hidden></div>
-<p class="foot">Test site for SMU. Nothing you enter is stored. Your details are used once to send one email.</p>
+<p class="foot">Test site for SMU. Nothing you enter is stored. Your details are used once to send one email with a link.</p>
 </div></section>
 </main>
 <script>
@@ -65,11 +65,11 @@ const $=id=>document.getElementById(id);
 const T={
 en:{poster:'Nova K live in Lisbon<br>Estádio do Mar<br>12 September 2027',month:'September',sub:'Live in Lisbon',lead:'Pre-register for early access',fn:'First Name',ln:'Last Name',gd:'Gender',sel:'Select',male:'Male',female:'Female',other:'Other',
 consent:'By registering, you agree to receive updates from the organisers. You can unsubscribe at any time.',go:'Sign Up',sending:'Sending...',
-ok:'Registration successful! You’ll receive a confirmation email.',bad:'Error, please try again.',net:'Network error. Please try again.',
+ok:'Registration received! Check your email and open the link in it to verify your address.',bad:'Error, please try again.',net:'Network error. Please try again.',
 req:'Please fill in this field.',selreq:'Please select an item in the list.',mail:'Please enter a valid email address.'},
 es:{poster:'Nova K en vivo en Lisboa<br>Estádio do Mar<br>12 de septiembre 2027',month:'Septiembre',sub:'En vivo en Lisboa',lead:'Pre-regístrate para acceso anticipado',fn:'Nombre',ln:'Apellido',gd:'Género',sel:'Seleccionar',male:'Hombre',female:'Mujer',other:'Otro',
 consent:'Al registrarte aceptas recibir información de parte de los organizadores, puedes cancelarlo en cualquier momento.',go:'Registrarme',sending:'Enviando...',
-ok:'¡Registro exitoso! Recibirás un correo de confirmación.',bad:'Error, intenta nuevamente.',net:'Error de red. Intenta nuevamente.',
+ok:'¡Registro recibido! Revisa tu correo y abre el enlace para verificar tu dirección.',bad:'Error, intenta nuevamente.',net:'Error de red. Intenta nuevamente.',
 req:'Completa este campo.',selreq:'Selecciona un elemento de la lista.',mail:'Introduce un correo electrónico válido.'}};
 let L='en';
 function setLang(l){L=l;document.documentElement.lang=l;
