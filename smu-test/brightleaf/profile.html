@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Set up your profile - Brightleaf</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f3f8f2;color:#1b2b1e;min-height:100vh;display:flex;flex-direction:column}
+header{padding:20px 32px;font-weight:800;font-size:22px;color:#1f7a3a;letter-spacing:-.5px}header span{color:#8bc34a}
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#fff;width:100%;max-width:420px;padding:36px 32px;border-radius:16px;box-shadow:0 10px 40px rgba(31,122,58,.12)}
+h1{margin:0 0 4px;font-size:26px}p.sub{margin:0 0 24px;color:#5b6b5e}
+label{display:block;font-weight:600;font-size:14px;margin:16px 0 6px}
+select,input{width:100%;padding:12px 14px;font:inherit;border:1.5px solid #cfdccf;border-radius:10px;background:#fff}
+input:focus{outline:none;border-color:#1f7a3a;box-shadow:0 0 0 3px rgba(31,122,58,.18)}
+select.bad,input.bad{border-color:#c62828}.err{color:#c62828;font-size:13px;min-height:18px;margin-top:4px}
+.row{display:flex;gap:12px}.row>div{flex:1}
+button.main{margin-top:22px;width:100%;padding:13px;border:0;border-radius:10px;background:#1f7a3a;color:#fff;font:700 16px system-ui,sans-serif;cursor:pointer}
+button.main:hover{background:#17612e}button.main:disabled{opacity:.6;cursor:wait}
+button.link{background:none;border:0;color:#1f7a3a;font:600 14px system-ui,sans-serif;cursor:pointer;padding:0;text-decoration:underline}
+footer{text-align:center;padding:20px;color:#7a8a7d;font-size:13px}
+.hint{font-size:12px;color:#7a8a7d}[hidden]{display:none!important}
+#code{font-size:28px;letter-spacing:10px;text-align:center}
+</style>
+<body>
+<header>Bright<span>leaf</span></header>
+<main>
+<form class="card" id="f" novalidate>
+<h1>Set up your profile</h1><p class="sub">Your email is verified. One last step.</p>
+<label for="dname">Display name</label><input id="dname" name="dname" autocomplete="nickname"><div class="err" data-for="dname"></div>
+<label for="tz">Timezone</label><select id="tz" name="tz"><option value="">Choose a timezone</option><option>UTC</option><option>Europe/London</option><option>Europe/Paris</option><option>America/New_York</option><option>America/Chicago</option><option>America/Los_Angeles</option><option>Asia/Tokyo</option><option>Australia/Sydney</option></select><div class="err" data-for="tz"></div>
+<button class="main" type="submit">Finish</button>
+</form>
+</main>
+<footer>A demo site: nothing you type here is kept.</footer>
+<script>
+const $=id=>document.getElementById(id);
+const rules={dname:v=>v.trim()?(v.trim().length<2?'Enter at least 2 characters':''):'Enter a display name',tz:v=>v?'':'Choose an option'};
+const check=n=>{const m=rules[n]($(n).value);document.querySelector('[data-for='+n+']').textContent=m;$(n).classList.toggle('bad',!!m);return !m};
+Object.keys(rules).forEach(n=>$(n).addEventListener('blur',()=>check(n)));
+$('f').addEventListener('submit',e=>{e.preventDefault();if(Object.keys(rules).map(check).every(Boolean))location.href='welcome.html'});
+</script></body></html>

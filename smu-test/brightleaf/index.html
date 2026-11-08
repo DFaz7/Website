@@ -60,5 +60,5 @@ $('v').addEventListener('submit',async e=>{e.preventDefault();const c=$('code').
 if(!/^\d{6}$/.test(c)){$('cerr').textContent='Enter the 6-digit code';$('code').classList.add('bad');return}
 $('code').classList.remove('bad');$('vb').disabled=true;
 const r=await post('/verify',{email:$('email').value,code:c});$('vb').disabled=false;
-if(r.ok)location.href='welcome.html';else{$('cerr').textContent=r.j.error||'Something went wrong.';$('code').classList.add('bad')}});
+if(r.ok)location.href='profile.html';else{$('cerr').textContent=r.j.error||'Something went wrong.';$('code').classList.add('bad')}});
 </script></body></html>
