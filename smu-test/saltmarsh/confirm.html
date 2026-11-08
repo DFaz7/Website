@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Saltmarsh Food Festival</title>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0b2a4a,#0e5a7a);color:#fff;font-family:Georgia,serif;padding:16px}
+.b{max-width:460px;width:100%}.l{letter-spacing:3px;text-transform:uppercase;margin-bottom:22px;color:#f08a5d;font-weight:700;text-align:center}h1{font-size:30px;margin:0 0 10px;text-align:center}
+p{font-family:system-ui,sans-serif;opacity:.85;font-size:17px;text-align:center}form{font-family:system-ui,sans-serif;margin-top:18px}
+.f{border:0;padding:0;margin:0 0 18px}label,legend{display:block;font-size:15px;margin-bottom:8px;padding:0}label.r{display:flex;gap:8px;align-items:center;padding:9px 12px;border:1.5px solid #f08a5d;border-radius:10px;margin-bottom:6px;cursor:pointer}
+select{width:100%;padding:11px 12px;font:inherit;border-radius:10px;border:1.5px solid #f08a5d}.err{color:#ffb3b3;font-size:14px;min-height:18px;margin-top:4px}
+button{width:100%;padding:14px;border:0;border-radius:12px;font:700 17px system-ui,sans-serif;background:#f08a5d;color:#111;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.ic{width:64px;height:64px;border-radius:50%;border:2px solid #f08a5d;color:#f08a5d;font-size:32px;line-height:60px;margin:0 auto 18px;text-align:center}[hidden]{display:none!important}a{color:#f08a5d}</style></head>
+<body><div class="b"><div class="l">Saltmarsh Food Festival</div>
+<div id="wait"><p>Checking your link...</p></div>
+<div id="step" hidden><h1>Almost done: complete your booking</h1><p>Two quick questions, then your tickets are booked.</p>
+<form id="f" novalidate><div class="f"><label for="diet">Dietary needs</label><select id="diet" name="diet"><option value="">Choose...</option><option>None</option><option>Vegetarian</option><option>Vegan</option><option>Gluten-free</option></select><div class="err" data-for="diet"></div></div>
+<fieldset class="f"><legend>How did you hear about the festival?</legend><label class="r"><input type="radio" name="heard" value="A friend"> A friend</label><label class="r"><input type="radio" name="heard" value="Social media"> Social media</label><label class="r"><input type="radio" name="heard" value="A poster or flyer"> A poster or flyer</label><label class="r"><input type="radio" name="heard" value="A web search"> A web search</label><div class="err" data-for="heard"></div></fieldset><div class="err" id="top"></div><button type="submit" id="go">Confirm booking</button></form></div>
+<div id="done" hidden><div class="ic">&#10003;</div><h1>Booking confirmed</h1><p>Thank you. Your tickets for the Saltmarsh Food Festival are booked.</p></div>
+<div id="gone" hidden><h1>This link has expired</h1><p>Confirm links work for one hour. Go back to the sign-up page to get a new one.</p><p><a href="index.html">Back to sign up</a></p></div></div>
+<script>
+// Talks to the mail worker: it checks the link, checks the answers and uses the link up. Nothing typed is kept.
+const API='https://signup-mail.dmftrading.workers.dev/api/step/event/';
+const NAMES=['diet','heard'];
+const $=id=>document.getElementById(id);
+const show=id=>{for(const x of['wait','step','done','gone'])$(x).hidden=x!==id};
+const token=new URLSearchParams(location.search).get('t')||'';
+const url=API+encodeURIComponent(token);
+if(!/^[A-Za-z0-9_-]{20,64}$/.test(token))show('gone');
+else fetch(url).then(r=>show(r.ok?'step':'gone')).catch(()=>{$('wait').innerHTML='<p>Could not reach the server. Try again.</p>'});
+$('f').addEventListener('submit',async e=>{e.preventDefault();$('top').textContent='';
+const body={};let ok=true;
+for(const n of NAMES){const el=document.querySelector('[name='+n+']');const v=el.type==='radio'?(document.querySelector('[name='+n+']:checked')||{}).value||'':el.value;body[n]=v;
+const bad=!v;document.querySelector('[data-for='+n+']').textContent=bad?'Choose an option':'';if(bad)ok=false}
+if(!ok)return;
+$('go').disabled=true;
+try{const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+if(r.ok)show('done');else if(r.status===410)show('gone');
+else{const j=await r.json().catch(()=>({}));const er=j.errors||{};for(const n of NAMES)document.querySelector('[data-for='+n+']').textContent=er[n]||'';if(!j.errors)$('top').textContent='Something went wrong.'}}
+catch{$('top').textContent='Could not reach the server. Try again.'}
+$('go').disabled=false});
+</script></body></html>
