@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Nova K - Lisbon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#090909;font:400 16px/1.5 "Space Mono",ui-monospace,Menlo,Consolas,monospace}
+main{min-height:100vh;max-width:1024px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;border-left:2px solid #090909;border-right:2px solid #090909}
+section{padding:48px;display:flex;align-items:center;justify-content:center}
+.col{width:100%;max-width:512px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.top p{margin:0;font-size:14px;font-weight:700;text-transform:uppercase}
+.tog{display:flex;gap:8px}
+.tog button{width:52px;height:40px;border-radius:8px;border:1px solid #090909;background:#fff;color:#000;font:700 13.5px "Space Mono",monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.tog button[aria-pressed=true]{background:#000;color:#fff}
+.poster{background:#000;color:#fff;border-radius:16px 5vw 5vw 16px;aspect-ratio:480/500;position:relative;overflow:hidden;text-align:center;padding:12% 8% 0;font-size:clamp(11px,1.5vw,15px);text-transform:uppercase;line-height:1.9}
+.poster .planet{position:absolute;left:-15%;right:-15%;bottom:-62%;height:80%;border-radius:50%;background:radial-gradient(ellipse at 50% 0,#9fb3bd 0,#55656d 35%,#1c262b 75%)}
+.poster .dot{position:absolute;left:50%;bottom:36%;width:9px;height:26px;margin-left:-4px;border-radius:5px 5px 2px 2px;background:#e0381f}
+.date{margin-top:14px}
+.date .d{display:flex;align-items:center;gap:20px;font-size:24px}.date .d i{flex:1;height:4px;background:#2a2a2a}
+.date .m{display:flex;justify-content:space-between;font-size:24px;text-transform:uppercase}.date .m span:last-child{color:#777}
+h1{margin:0;font-size:60px;line-height:1;font-weight:700;text-transform:uppercase}
+h2{margin:8px 0 0;font-size:30px;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:-.05em}
+.venue{margin:10px 0 0;font-size:21.6px;text-transform:uppercase;letter-spacing:-.05em}
+.lead{margin:36px 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.025em}
+label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:14px 0 4px}
+input,select{width:100%;padding:12px 4px;font:400 16px "Space Mono",monospace;color:#090909;background:transparent;border:0;border-bottom:2px solid #090909;border-radius:0;transition:background .5s,border-color .5s}
+input::placeholder{color:#999}
+input:focus,select:focus{outline:none;background:#f3f3f3}
+.bad{border-bottom-color:#c62828}.err{color:#c62828;font-size:13px;min-height:19px;margin-top:3px}
+.consent{font-size:12px;color:#555;margin:14px 0 0}
+.go{display:block;width:100%;margin-top:18px;padding:15px;border:0;border-radius:8px;background:#000;color:#fff;font:700 16px "Space Mono",monospace;text-transform:uppercase;cursor:pointer}
+.go:hover{background:#333}.go:disabled{background:#999;cursor:not-allowed}
+#f{transition:opacity .6s,transform .6s}#f.out{opacity:0;transform:translateY(-20px)}
+#msg{display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:15px;min-height:0}
+#msg svg{flex:none;width:22px;height:22px;margin-top:2px}
+.foot{margin-top:40px;font-size:12px;color:#777}
+[hidden]{display:none!important}
+@media(max-width:768px){main{grid-template-columns:1fr;border:0}section{padding:24px}h1{font-size:48px}h2{font-size:24px}.venue{font-size:18px}}
+</style></head><body>
+<main>
+<section><div class="col">
+<div class="top"><p>Nova K - Lisbon</p><div class="tog" role="group" aria-label="Language"><button type="button" data-l="es" aria-pressed="false">ES</button><button type="button" data-l="en" aria-pressed="true">EN</button></div></div>
+<div class="poster" role="img" aria-label="Poster for Nova K live in Lisbon"><span data-t="poster">Nova K live in Lisbon<br>Est&aacute;dio do Mar<br>12 September 2027</span><div class="planet"></div><div class="dot"></div></div>
+<div class="date"><div class="d"><span>12</span><i></i></div><div class="m"><span data-t="month">September</span><span>2027</span></div></div>
+</div></section>
+<section><div class="col">
+<h1>Nova K</h1><h2 data-t="sub">Live in Lisbon</h2><p class="venue">Est&aacute;dio do Mar</p>
+<p class="lead" data-t="lead">Pre-register for early access</p>
+<form id="f" novalidate>
+<label for="fn" data-t="fn">First Name</label><input id="fn" name="firstName" autocomplete="given-name"><div class="err" data-for="fn"></div>
+<label for="ln" data-t="ln">Last Name</label><input id="ln" name="lastName" autocomplete="family-name"><div class="err" data-for="ln"></div>
+<label for="em">Email</label><input id="em" name="email" type="email" autocomplete="email"><div class="err" data-for="em"></div>
+<label for="gd" data-t="gd">Gender</label><select id="gd" name="gender"><option value="" data-t="sel">Select</option><option value="Male" data-t="male">Male</option><option value="Female" data-t="female">Female</option><option value="Other" data-t="other">Other</option></select><div class="err" data-for="gd"></div>
+<p class="consent" data-t="consent">By registering, you agree to receive updates from the organisers. You can unsubscribe at any time.</p>
+<button type="submit" class="go" id="go"><span id="bt" data-t="go">Sign Up</span></button>
+</form>
+<div id="msg" aria-live="polite" hidden></div>
+<p class="foot">Test site for SMU. Nothing you enter is stored. Your details are used once to send one email.</p>
+</div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const T={
+en:{poster:'Nova K live in Lisbon<br>Estádio do Mar<br>12 September 2027',month:'September',sub:'Live in Lisbon',lead:'Pre-register for early access',fn:'First Name',ln:'Last Name',gd:'Gender',sel:'Select',male:'Male',female:'Female',other:'Other',
+consent:'By registering, you agree to receive updates from the organisers. You can unsubscribe at any time.',go:'Sign Up',sending:'Sending...',
+ok:'Registration successful! You’ll receive a confirmation email.',bad:'Error, please try again.',net:'Network error. Please try again.',
+req:'Please fill in this field.',selreq:'Please select an item in the list.',mail:'Please enter a valid email address.'},
+es:{poster:'Nova K en vivo en Lisboa<br>Estádio do Mar<br>12 de septiembre 2027',month:'Septiembre',sub:'En vivo en Lisboa',lead:'Pre-regístrate para acceso anticipado',fn:'Nombre',ln:'Apellido',gd:'Género',sel:'Seleccionar',male:'Hombre',female:'Mujer',other:'Otro',
+consent:'Al registrarte aceptas recibir información de parte de los organizadores, puedes cancelarlo en cualquier momento.',go:'Registrarme',sending:'Enviando...',
+ok:'¡Registro exitoso! Recibirás un correo de confirmación.',bad:'Error, intenta nuevamente.',net:'Error de red. Intenta nuevamente.',
+req:'Completa este campo.',selreq:'Selecciona un elemento de la lista.',mail:'Introduce un correo electrónico válido.'}};
+let L='en';
+function setLang(l){L=l;document.documentElement.lang=l;
+document.querySelectorAll('[data-t]').forEach(e=>{const v=T[l][e.dataset.t];if(e.dataset.t==='poster')e.innerHTML=v;else e.textContent=v});
+document.querySelectorAll('.tog button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.l===l)));
+document.querySelectorAll('.err').forEach(e=>{if(e.textContent)validate()})}
+document.querySelectorAll('.tog button').forEach(b=>b.onclick=()=>setLang(b.dataset.l));
+const mark=(n,m)=>{document.querySelector('[data-for='+n+']').textContent=m;$(n).classList.toggle('bad',!!m);$(n).setAttribute('aria-invalid',m?'true':'false');return !m};
+function validate(){const t=T[L];let ok=true;
+ok=mark('fn',$('fn').value.trim()?'':t.req)&ok;ok=mark('ln',$('ln').value.trim()?'':t.req)&ok;
+const e=$('em').value.trim();ok=mark('em',!e?t.req:/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)?'':t.mail)&ok;
+ok=mark('gd',$('gd').value?'':t.selreq)&ok;return !!ok}
+const API='https://signup-mail.dmftrading.workers.dev';
+const ICON={ok:'<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
+bad:'<svg viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>'};
+function say(kind,text){const m=$('msg');m.innerHTML=ICON[kind]+'<span></span>';m.lastChild.textContent=text;m.hidden=false}
+['fn','ln','em','gd'].forEach(i=>$(i).addEventListener($(i).tagName==='SELECT'?'change':'input',()=>{if($(i).classList.contains('bad'))validate()}));
+$('f').addEventListener('submit',async ev=>{ev.preventDefault();if($('go').disabled)return;$('msg').hidden=true;
+if(!validate()){const b=document.querySelector('.bad');if(b)b.focus();return}
+$('go').disabled=true;$('bt').textContent=T[L].sending;
+let done=false;
+try{await new Promise(r=>setTimeout(r,1000));
+const r=await fetch(API+'/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'prereg',name:$('fn').value.trim(),email:$('em').value.trim()})});
+let j={};try{j=await r.json()}catch{}
+if(r.ok){done=true;$('f').classList.add('out');setTimeout(()=>{$('f').hidden=true;say('ok',T[L].ok)},600)}else say('bad',j.error||T[L].bad)}
+catch{say('bad',T[L].net)}
+finally{if(!done){$('go').disabled=false;$('bt').textContent=T[L].go}}});
+</script></body></html>
