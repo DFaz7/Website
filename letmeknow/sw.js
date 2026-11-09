@@ -1,6 +1,6 @@
 // Let Me Know service worker: the app shell offline, updates, and alerts.
 // VERSION must match app.js; a change here is what makes phones pick up a new version.
-const VERSION = "2.1.1";
+const VERSION = "2.2.0";
 const CACHE = `lmk-${VERSION}`;
 const LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 const SHELL = [
@@ -9,6 +9,7 @@ const SHELL = [
   "app.css",
   "app.js",
   "theme.js",
+  "lib/answer.mjs",
   "lib/api.mjs",
   "lib/nav.mjs",
   "lib/patch.mjs",
@@ -78,6 +79,9 @@ function readPush(event) {
 }
 
 const APP = { smu: "SMU", tabgod: "TabGod" };
+// A needs_you the PC can take an answer to shows these as the alert's buttons (where the browser shows buttons:
+// not on iPhone or iPad, where the app's own page for that alert has them). The same words as lib/answer.mjs.
+const ANSWER_LABELS = { skip: "Skip this person", do_it: "I'll do it", retry: "Retry" };
 
 // The same second guard as the app's own (lib/status.mjs scrub): email and IP addresses never reach the screen.
 function scrub(s) {
@@ -135,6 +139,12 @@ function notice(p) {
     data: { app, pc, task, kind: typeof p.kind === "string" ? p.kind : "" },
   };
   if (Number.isFinite(at)) options.timestamp = at;
+  const answers = Array.isArray(p.answers) ? [...new Set(p.answers)].filter((a) => ANSWER_LABELS[a]) : [];
+  if (p.kind === "needs_you" && task && typeof p.question === "string" && /^q_[0-9A-Za-z_-]{4,40}$/.test(p.question) && answers.length) {
+    options.actions = answers.map((a) => ({ action: a, title: ANSWER_LABELS[a] })); // the browser shows as many as it can
+    options.data.question = p.question;
+    options.data.answers = answers;
+  }
   return { title: cut(p.title, 80) || t, options };
 }
 
@@ -150,15 +160,21 @@ self.addEventListener("push", (event) => {
 });
 
 // Tapping an alert opens the app on that PC and task: an open window is told by message, else a new one opens at
-// ./?pc=..&app=..&task=..
+// ./?pc=..&app=..&task=.. One of its answer buttons does the same and adds the answer (&q=..&answer=..), which the
+// app sends to the PC once and shows what came of it on that task's page.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const d = event.notification.data || {};
+  const reply = d.question && Array.isArray(d.answers) && d.answers.includes(event.action) ? event.action : "";
   const target = new URL("./", self.location);
   if (d.pc) {
     target.searchParams.set("pc", d.pc);
     if (d.app) target.searchParams.set("app", d.app);
     if (d.task) target.searchParams.set("task", d.task);
+    if (reply) {
+      target.searchParams.set("q", d.question);
+      target.searchParams.set("answer", reply);
+    }
   }
   event.waitUntil(
     (async () => {
@@ -166,7 +182,11 @@ self.addEventListener("notificationclick", (event) => {
       for (const w of wins) {
         if ("focus" in w) {
           await w.focus();
-          if (d.pc) w.postMessage({ type: "open", pc: d.pc, app: d.app || "", task: d.task || "" });
+          if (d.pc) {
+            const m = { type: "open", pc: d.pc, app: d.app || "", task: d.task || "" };
+            if (reply) Object.assign(m, { question: d.question, answer: reply });
+            w.postMessage(m);
+          }
           return;
         }
       }

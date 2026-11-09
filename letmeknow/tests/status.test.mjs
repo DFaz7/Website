@@ -177,7 +177,7 @@ test("app and service worker carry the same version, and the worker caches every
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
   const v = (s) => /VERSION = "([^"]+)"/.exec(s)[1];
   assert.equal(v(app), v(sw));
-  for (const f of ["lib/api.mjs", "lib/nav.mjs", "lib/patch.mjs", "lib/push.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs",
+  for (const f of ["lib/answer.mjs", "lib/api.mjs", "lib/nav.mjs", "lib/patch.mjs", "lib/push.mjs", "lib/scan.mjs", "lib/status.mjs", "lib/store.mjs",
     "lib/tokens.mjs", "app.js", "app.css", "theme.js", "index.html"]) {
     assert.ok(sw.includes(`"${f}"`), `${f} in the shell list`);
   }
@@ -332,7 +332,8 @@ test("a missing or broken detail is null, odd parts are dropped, never an error"
   assert.equal(one({ detail: "x" }).detail, null);
   assert.equal(one({ detail: [] }).detail, null);
   const d = one({ detail: { kind: "<script>", step: 5, since: "later", recent: [null, 3, { reason: "" }, { at: "x", reason: "ok" }] } }).detail;
-  assert.deepEqual(d, { kind: "", step: "", page: "", since: null, whatToDo: "", recent: [{ at: null, result: "failed", reason: "ok" }] });
+  assert.deepEqual(d, { kind: "", step: "", page: "", since: null, whatToDo: "", recent: [{ at: null, result: "failed", reason: "ok" }],
+    question: null });
 });
 
 test("emails and IP addresses are masked as a second guard", () => {
@@ -403,11 +404,11 @@ test("per-person and gap seconds are kept for the detail view", () => {
   assert.equal(t.gapSeconds, 20);
 });
 
-test("version 2.1.1 in both app and service worker; the detail view is in the page", () => {
+test("version 2.2.0 in both app and service worker; the detail view is in the page", () => {
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
   const sw = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-  assert.match(app, /VERSION = "2\.1\.1"/);
-  assert.match(sw, /VERSION = "2\.1\.1"/);
+  assert.match(app, /VERSION = "2\.2\.0"/);
+  assert.match(sw, /VERSION = "2\.2\.0"/);
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   assert.ok(html.includes('id="detail"') && html.includes('id="detail-back"'));
 });

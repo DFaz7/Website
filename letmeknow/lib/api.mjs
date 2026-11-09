@@ -55,4 +55,7 @@ export const devices = (pc) => call(pc.url, "/v1/devices", { token: pc.token });
 export const removeDevice = (pc, id) =>
   call(pc.url, `/v1/devices/${encodeURIComponent(id)}`, { method: "DELETE", token: pc.token });
 export const testPush = (pc) => call(pc.url, "/v1/devices/me/test", { method: "POST", token: pc.token, body: {} });
+// The PC may take a few seconds to act on it (it waits for its own window), so this one gets longer.
+export const answer = (pc, question, ans) =>
+  call(pc.url, "/v1/answer", { method: "POST", token: pc.token, body: { question, answer: ans }, ms: 20000 });
 export const rotate = (pc) => call(pc.url, "/v1/token/rotate", { method: "POST", token: pc.token, body: {} });

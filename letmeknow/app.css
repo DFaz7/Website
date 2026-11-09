@@ -393,6 +393,15 @@ svg { display: block; }
 .todo p { margin: 0; font-size: 17px; line-height: 1.45; font-weight: 500; }
 .todo.calm { box-shadow: inset 4px 0 0 var(--green), var(--shadow); }
 .todo.calm p { font-size: 16px; color: var(--muted); }
+/* Answering the PC's question from the phone: even buttons that wrap on a narrow phone, then what came of it */
+.todo .answer-or { margin-top: 14px; font-size: 15px; font-weight: 600; color: var(--muted); }
+.answers { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
+@media (min-width: 600px) { .answers { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+.answers .btn { padding: 0 16px; }
+.todo p.answer-result { margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-in); font-size: 15px; font-weight: 600; line-height: 1.4; }
+.todo p.answer-result.sending { background: var(--tile); color: var(--muted); }
+.todo p.answer-result.ok { background: var(--green-soft); color: var(--green); }
+.todo p.answer-result.error { background: var(--amber-soft); color: var(--amber); }
 .progress { padding: var(--pad); display: grid; gap: 4px; }
 .progress .tiles { margin-bottom: 8px; }
 .progress .bar-track { margin-bottom: 6px; }

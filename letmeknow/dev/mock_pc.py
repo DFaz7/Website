@@ -25,6 +25,8 @@ import time
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 LOCK = threading.Lock()
 QUIET = False
+ANSWER_WORDS = {"skip": "Skipped", "do_it": "SMU is waiting for you at the PC", "retry": "Trying again"}
+ANSWERED_PAUSE = 30  # s a fake wait stays answered before it asks again
 
 
 def log(*a) -> None:
@@ -79,6 +81,11 @@ class FakePC:
         self.pair_times: list[float] = []
         self.last_push: dict[str, float] = {}
         self.was_needed: dict[str, bool] = {}
+        # Answers from the phone: task id -> its open question's id, the questions answered (id -> answer), and
+        # when each task was last answered (its wait then stops for ANSWERED_PAUSE s, then a new question opens)
+        self.question: dict[str, str] = {}
+        self.answered: dict[str, str] = {}
+        self.answered_at: dict[str, float] = {}
 
     def url(self) -> str:
         return f"http://localhost:{self.port}"
@@ -104,8 +111,12 @@ class FakePC:
                 done, left = done + step, left - step
                 running = left > 0
             why = ""
-            if t.get("asks") and running:
+            if t.get("asks") and running and time.time() - self.answered_at.get(t["id"], 0) > ANSWERED_PAUSE:
                 why = t["asks"]
+            if why and t.get("answers"):
+                self.question.setdefault(t["id"], "q_" + secrets.token_hex(6))
+            else:
+                self.question.pop(t["id"], None)
             per = t.get("per")
             eta = None if per is None or not left else int(per * left - (el % 60 if running else 0))
             out.append({"id": t["id"], "name": t["name"], "done": done, "failed": t["failed"], "left": left,
@@ -114,6 +125,8 @@ class FakePC:
                         "eta_seconds": eta, "eta_at": now_iso(time.time() + eta) if eta is not None else None})
             if t.get("detail"):
                 out[-1]["detail"] = self.detail(t["detail"])
+                if t["id"] in self.question:
+                    out[-1]["detail"]["question"] = {"id": self.question[t["id"]], "answers": t["answers"]}
             self.maybe_push(t["id"], t["name"], bool(why), why)
         st = {"app": self.app, "protocol": 1,
               "device": {"name": self.name, "id": self.id, "active": any(x["running"] for x in out)},
@@ -149,6 +162,26 @@ class FakePC:
                          for r in d.get("recent", [])]
         return out
 
+    def answer(self, body: dict) -> tuple[int, dict]:
+        """POST /v1/answer (PROTOCOL.md, Answers): once per question, only while it is open, only its answers."""
+        qid, ans = body.get("question"), body.get("answer")
+        if not isinstance(qid, str) or not isinstance(ans, str):
+            return 400, {"error": "bad request", "message": "The phone sent something SMU can't read."}
+        if ans not in ANSWER_WORDS:
+            return 422, {"error": "answer", "message": "SMU doesn't know that answer."}
+        if qid in self.answered:
+            return 409, {"error": "answered", "message": f"That was answered already: {ANSWER_WORDS[self.answered[qid]]}."}
+        tid = next((k for k, v in self.question.items() if v == qid), None)
+        if tid is None:
+            return 409, {"error": "stale", "message": "That question is over: SMU isn't waiting on it any more."}
+        if ans not in next(t["answers"] for t in self.tasks if t["id"] == tid):
+            return 422, {"error": "answer", "message": "SMU can't do that for this question. Answer it on the PC."}
+        self.answered[qid] = ans
+        self.question.pop(tid)
+        self.answered_at[tid] = time.time()
+        log(f"[{self.name} {self.app}] answer {ans} to {qid}")
+        return 200, {"ok": True, "answer": ans, "message": ANSWER_WORDS[ans]}
+
     def maybe_push(self, tid: str, tname: str, needed: bool, why: str) -> None:
         was = self.was_needed.get(tid, False)
         self.was_needed[tid] = needed
@@ -159,6 +192,9 @@ class FakePC:
         self.last_push[tid] = time.time()
         payload = {"v": 1, "app": self.app, "kind": "needs_you", "pc": self.id, "pc_name": self.name, "task": tid,
                    "task_name": tname, "title": f"{self.name} needs you", "body": f"{tname}: {why}", "at": now_iso()}
+        if tid in self.question:
+            payload["question"] = self.question[tid]
+            payload["answers"] = next(t["answers"] for t in self.tasks if t["id"] == tid)
         for d in self.devices.values():
             if d["push"]:
                 log(f"[{self.name} {self.app}] push to {d['name']}: {json.dumps(payload)}")
@@ -271,6 +307,8 @@ def make_handler(pc: FakePC, origins: set[str]):
                         return self.send(409, {"error": "no push"})
                     log(f"[{pc.name} {pc.app}] test push to {d['name']}")
                     return self.send(200, {"ok": True})
+                if method == "POST" and path == "/v1/answer" and pc.app == "smu":
+                    return self.send(*pc.answer(body))
                 if method == "POST" and path == "/v1/token/rotate":
                     tok = b64url(secrets.token_bytes(32))
                     pc.devices[did]["hash"] = hashlib.sha256(tok.encode()).hexdigest()
@@ -333,7 +371,7 @@ def fake_pcs() -> list[FakePC]:
     return [
         FakePC("ZBook", "smu", 8791, [
             {"id": "t1", "name": "Gym list", "done": 12, "failed": 1, "left": 30, "run": True, "per": 95, "gap": 20,
-             "asks": "Needs attention",
+             "asks": "Needs attention", "answers": ["skip", "do_it", "retry"],
              "detail": {"kind": "attention", "step": "Date of birth", "page": "Step 2 of 4", "since_ago": 360,
                         "recent": [
                             {"ago": 900, "reason": "The form said the email is already in use"},
